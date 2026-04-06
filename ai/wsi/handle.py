@@ -38,6 +38,7 @@ class WSIHandle:
         
         return PatchRef()
 
+
 # 사용자로부터 Image path를 전달받아서, 
 # 다양한 wsi format(.tiff ...)에 따라 WSIHandle을 구성하고 리턴
 def open_wsi_handle(image_path: os.PathLike) -> WSIHandle:
