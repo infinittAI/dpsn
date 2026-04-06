@@ -39,7 +39,7 @@ class WSIHandle:
 
 
 # 사용자로부터 Image path를 전달받아서, 
-# 다양한 wsi format(.tiff ...)에 따라 WSIHandle을 구성하고 리턴
+# 다양한 wsi format(.tif ...)에 따라 WSIHandle을 구성하고 리턴
 def open_wsi_handle(image_path: os.PathLike) -> WSIHandle:
     # openslide에서 지원하는 형식인지 확인
     if openslide.OpenSlide.detect_format(image_path):
