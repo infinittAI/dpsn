@@ -23,6 +23,7 @@ class WSIHandle:
                 f"Level: {level} must be less than maximum level: {level_count}"
             )
         
+        # Image의 범위가 유효한지 확인
         img_width, img_height = self.level_dimensions[level]
 
         if not (0 <= pos[0] <= img_width - dim[0]):
