@@ -5,7 +5,6 @@ import openslide
 
 from ai.wsi.patch_ref import PatchRef
 
-
 @dataclass
 class WSIHandle:
     image_path: os.PathLike
