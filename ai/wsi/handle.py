@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import os
+from pathlib import Path
 
 import openslide
 
@@ -7,7 +8,7 @@ from ai.wsi.patch_ref import PatchRef
 
 @dataclass
 class WSIHandle:
-    image_path: os.PathLike
+    image_path: Path
     dim: tuple[int, int]
     mpp: tuple[float, float]
     level_dimensions: tuple
@@ -40,7 +41,9 @@ class WSIHandle:
 
 # 사용자로부터 Image path를 전달받아서, 
 # 다양한 wsi format(.tif ...)에 따라 WSIHandle을 구성하고 리턴
-def open_wsi_handle(image_path: os.PathLike) -> WSIHandle:
+def open_wsi_handle(image_path: str | os.PathLike[str]) -> WSIHandle:
+    image_path = Path(image_path)
+    
     # openslide에서 지원하는 형식인지 확인
     if openslide.OpenSlide.detect_format(image_path):
         with openslide.OpenSlide(image_path) as slide:
