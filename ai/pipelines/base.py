@@ -8,5 +8,4 @@ class ModelPipeline(ABC):
         pass
     
     @abstractmethod
-    def run(self, src_img_path: str, target_img_path: str) -> PipelineResult: ...
-    
+    def run(self, src_img_path: str, target_img_path: str | None) -> PipelineResult: ...

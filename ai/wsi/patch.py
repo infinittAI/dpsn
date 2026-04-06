@@ -6,5 +6,5 @@ from ai.wsi.patch_ref import PatchRef
 
 @dataclass
 class Patch:
-    refs: PatchRef
+    ref: PatchRef
     img: np.ndarray # [C, H, W]
