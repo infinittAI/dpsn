@@ -13,7 +13,9 @@ async def create_job(
 ):
     model_id_list = [int(x) for x in model_ids.split(",")]    
     
-    return [JobResponse(job_id = job_runner.create_job(mid, image, background_tasks)) for mid in model_id_list]
+    image_bytes = await image.read()    
+    
+    return [JobResponse(job_id = job_runner.create_job(mid, image_bytes, background_tasks)) for mid in model_id_list]
 
 # job_id로 job을 조회하고 현재 status를 반환
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
