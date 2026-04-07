@@ -18,4 +18,3 @@ class JobResultResponse(BaseModel):
     status: str
     result_image_id: str
     metrics: dict  # 나중에 AI 연결 후 구체적인 스키마로 교체
-    #이미지 추가
