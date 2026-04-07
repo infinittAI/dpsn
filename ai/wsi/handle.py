@@ -18,9 +18,9 @@ class WSIHandle:
     def make_ref(self, pos: tuple, level: int, dim: tuple) -> PatchRef:
         level_count = len(self.level_dimensions)
 
-        if level >= level_count:
+        if not (0 <= level < level_count):
             raise ValueError(
-                f"Level: {level} must be less than maximum level: {level_count}"
+                f"Level: {level} must be within [0, {level_count - 1}]"
             )
         
         # Image의 범위가 유효한지 확인
