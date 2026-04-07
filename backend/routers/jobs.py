@@ -11,8 +11,15 @@ async def create_job(
     image: UploadFile = File(...),
     model_ids: str = Form(...)
 ):
-    model_id_list = [int(x) for x in model_ids.split(",")]
-    image_id = image_store.save_image(image)
+    tokens = [x.strip() for x in model_ids.split(",")]
+    filtered_tokens = [x for x in tokens if x]
+    if not filtered_tokens:
+        raise HTTPException(status_code=400, detail="model_ids must contain at least one valid integer")
+    try:
+        model_id_list = [int(x) for x in filtered_tokens]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="model_ids must be a comma-separated list of integers")
+    image_id = await image_store.save_image(image)
     return [JobResponse(job_id=job_runner.create_job(mid, image_id, background_tasks)) for mid in model_id_list]
 
 # job_id로 job을 조회하고 현재 status를 반환
