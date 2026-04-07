@@ -1,18 +1,23 @@
-from fastapi import APIRouter, File, Form, UploadFile, HTTPException
-from schemas import JobResponse, JobStatusResponse
+from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks
+from schemas import JobResponse, JobStatusResponse, JobResultResponse
 from services import job_runner
 
 router = APIRouter()
 
+# 이미지와 model_id 목록을 받아 각 모델에 대한 job을 생성하고 job_id 목록을 반환
 @router.post("/jobs", response_model=list[JobResponse])
 async def create_job(
+    background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
     model_ids: str = Form(...)
 ):
     model_id_list = [int(x) for x in model_ids.split(",")]    
     
-    return [JobResponse(job_id = job_runner.create_job(mid)) for mid in model_id_list]
+    image_bytes = await image.read()    
+    
+    return [JobResponse(job_id = job_runner.create_job(mid, image_bytes, background_tasks)) for mid in model_id_list]
 
+# job_id로 job을 조회하고 현재 status를 반환
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job(job_id: str):
     if job_id not in job_runner.jobs:
@@ -20,15 +25,20 @@ async def get_job(job_id: str):
     job = job_runner.jobs[job_id]
     return JobStatusResponse(job_id=job_id, status=job["status"])
 
-@router.get("/jobs/{job_id}/results")
-async def get_job_results(job_id: int):
-    # TODO: 실제 결과 반환 (AI 모델 연결 후 구현)
+# job이 done 상태일 때 job_id로 결과(metrics)를 조회해 반환
+@router.get("/jobs/{job_id}/results", response_model= JobResultResponse)
+async def get_job_results(job_id: str):
+    # TODO: metrics 스키마 구체화 (AI 모델 연결 후 dict → Pydantic 모델로 교체)
+    if job_id not in job_runner.jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = job_runner.jobs[job_id]
+    
+    if job["status"] != "done":
+        raise HTTPException(status_code=400, detail=f"Job is not done yet: {job['status']}")
+    
     return {
         "job_id": job_id,
         "status": "done",
-        "metrics": {
-            "ssim": 0.0,
-            "psnr": 0.0
-        },
-        "result_image_url": ""
+        "metrics": job["result"]
     }
