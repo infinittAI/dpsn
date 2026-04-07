@@ -6,6 +6,14 @@ import openslide
 
 from ai.wsi.patch_ref import PatchRef
 
+class WSIHandleError(RuntimeError):
+    """Base class for WSI Handle errors."""
+
+
+class InvalidLevelError(WSIHandleError):
+    """"""
+
+
 @dataclass(frozen=True, slots=True)
 class WSIHandle:
     image_path: Path
