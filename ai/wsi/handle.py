@@ -10,8 +10,8 @@ class WSIHandleError(RuntimeError):
     """Base class for WSI Handle errors."""
 
 
-class InvalidLevelError(WSIHandleError):
-    """"""
+class UnsupportedWSIFormatError(WSIHandleError):
+    """Raised when the file format is not supported by the WSI backend."""
 
 
 @dataclass(frozen=True, slots=True)
