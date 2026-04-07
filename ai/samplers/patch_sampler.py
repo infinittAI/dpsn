@@ -168,14 +168,15 @@ class PatchSampler:
 
         logger.addHandler(file_handler)
         return logger
-
+    
+    # Main function
     def sample(
         self,
         wsi_handle: WSIHandle,
         mode: Literal["training", "inference"] = "inference",
-        max_patches: int | None = None,
-        seed: int | None = None,
-        save_debug: bool = True,
+        max_patches: int | None = None, #If slide produces too many valid patches
+        seed: int | None = None,        #For random subsampling of patches
+        save_debug: bool = True,        #If true: code logs thumbnail, tissue mask, tissue-mask overlay, and patch metadata json
     ) -> list[PatchRef]:
         """
         Generate PatchRefs from a single source WSI.
@@ -194,59 +195,64 @@ class PatchSampler:
         save_debug:
             Save thumbnail / tissue mask / overlay / sampled patch metadata
         """
-        if mode not in {"training", "inference"}:
+        if mode not in {"training", "inference"}: #check that mode is valid
             raise ValueError(f"mode must be 'training' or 'inference', got {mode}")
 
-        if self.strict_mpp_check:
+        if self.strict_mpp_check: #Check whether slide has valid mpp values
             self._validate_mpp(wsi_handle)
 
-        self._validate_read_level(wsi_handle)
+        self._validate_read_level(wsi_handle) #check whether slide has valid read level
 
+        #Start logging
         self.logger.info("----- New sampling run -----")
         self.logger.info("image_path=%s", wsi_handle.image_path)
         self.logger.info("mode=%s", mode)
         self.logger.info("max_patches=%s", max_patches)
         self.logger.info("seed=%s", seed)
 
-        mask_bundle = self._build_tissue_mask(wsi_handle)
-        tissue_mask = mask_bundle["mask"]
-        thumbnail_rgb = mask_bundle["thumbnail_rgb"]
-        mask_level = mask_bundle["mask_level"]
+        #Building tisue mask
+        mask_bundle = self._build_tissue_mask(wsi_handle) #returns mask, thumbnail, and mask level
+        tissue_mask = mask_bundle["mask"] #binary array of 1s (tissue) and 0s (background)
+        thumbnail_rgb = mask_bundle["thumbnail_rgb"] #rgb image at low res
+        mask_level = mask_bundle["mask_level"] #level used to make the mask
 
-        tissue_threshold = (
+        tissue_threshold = ( #which threshold to use depending on mode
             self.training_tissue_threshold if mode == "training"
             else self.inference_tissue_threshold
         )
 
-        patch_refs = self._generate_patch_refs(
+        patch_refs = self._generate_patch_refs( #iterate over slides and create PatchRef
             wsi_handle=wsi_handle,
             tissue_mask=tissue_mask,
             mask_level=mask_level,
             tissue_threshold=tissue_threshold,
         )
 
-        if not patch_refs:
+        if not patch_refs: #if no valid patches exist
             self.logger.error("No valid patches found after tissue filtering.")
             raise NoValidPatchError(
                 f"No valid patches found for slide: {wsi_handle.image_path}"
             )
-
+        
+        #log number of valid patches
         self.logger.info("valid_patch_count_before_sampling=%d", len(patch_refs))
 
+        #random subsampling for training mode
         if mode == "training" and max_patches is not None and len(patch_refs) > max_patches:
             rng = random.Random(seed)
+            original_count = len(patch_refs)
             selected_indices = rng.sample(range(len(patch_refs)), k=max_patches)
             patch_refs = [patch_refs[i] for i in selected_indices]
             self.logger.info(
                 "Applied training random subsampling: kept %d / %d patches",
-                len(patch_refs),
-                len(selected_indices) if selected_indices else 0,
+                max_patches,
+                original_count,
             )
         elif mode == "inference":
             # keep deterministic top-to-bottom, left-to-right order
             pass
 
-        if save_debug:
+        if save_debug: #Save debug outputs if requested
             self._save_debug_outputs(
                 wsi_handle=wsi_handle,
                 thumbnail_rgb=thumbnail_rgb,
@@ -256,6 +262,7 @@ class PatchSampler:
                 mode=mode,
             )
 
+        #log final patch count
         self.logger.info("final_patch_count=%d", len(patch_refs))
         self.logger.info("Sampling completed successfully.")
         return patch_refs
@@ -279,7 +286,7 @@ class PatchSampler:
                 f"read_level {self.read_level} must be within [0, {level_count - 1}]"
             )
 
-        read_w, read_h = wsi_handle.level_dimensions[self.read_level]
+        read_w, read_h = wsi_handle.level_dimensions[self.read_level] #width and height at specified level
         if self.patch_size > read_w or self.patch_size > read_h:
             self.logger.error(
                 "patch_size=%d is larger than read-level dimensions=%s",
@@ -301,35 +308,35 @@ class PatchSampler:
           5) morphology cleanup
         """
         mask_level = self._select_mask_level(wsi_handle)
-        level_w, level_h = wsi_handle.level_dimensions[mask_level]
+        level_w, level_h = wsi_handle.level_dimensions[mask_level] #getting width and height at the chosen level
 
-        self.logger.info("Selected mask_level=%d with dimensions=%s", mask_level, (level_w, level_h))
+        self.logger.info("Selected mask_level=%d with dimensions=%s", mask_level, (level_w, level_h)) #log chosen level
 
-        try:
+        try: #load thumbnail image
             with openslide.OpenSlide(str(wsi_handle.image_path)) as slide:
-                region = slide.read_region((0, 0), mask_level, (level_w, level_h))
+                region = slide.read_region((0, 0), mask_level, (level_w, level_h)) #read image region from (0,0)
         except Exception as e:
             self.logger.exception("Failed to open/read WSI: %s", wsi_handle.image_path)
             raise SlideOpenError(f"Failed to read slide: {wsi_handle.image_path}") from e
 
-        thumbnail_rgb = region.convert("RGB")
-        rgb = np.asarray(thumbnail_rgb, dtype=np.uint8)
+        thumbnail_rgb = region.convert("RGB") #convert image to RGB - drop alpha
+        rgb = np.asarray(thumbnail_rgb, dtype=np.uint8) #convert PIL image into numpy array
 
-        gray = self._rgb_to_gray(rgb)               # [0, 1]
-        sat = self._rgb_to_saturation(rgb)          # [0, 1]
-        otsu_t = self._otsu_threshold(gray)
+        gray = self._rgb_to_gray(rgb)               # [0, 1] Convert RBG image to grayscale
+        sat = self._rgb_to_saturation(rgb)          # [0, 1] Computes saturation
+        otsu_t = self._otsu_threshold(gray)         # Computes automatic threshold from grayscale image
 
-        white_mask = gray < self.mask_white_threshold
-        dark_or_saturated = (gray < otsu_t) | (sat > self.mask_saturation_threshold)
-        tissue = white_mask & dark_or_saturated
+        white_mask = gray < self.mask_white_threshold # filtering condition for being nonwhite enough - ndarray
+        dark_or_saturated = (gray < otsu_t) | (sat > self.mask_saturation_threshold) # filtering condition for being dark and saturated enough
+        tissue = white_mask & dark_or_saturated # combined condition for being a tissue; rough binary mask
 
-        tissue = self._clean_binary_mask(tissue)
+        tissue = self._clean_binary_mask(tissue) #filling holes, removing tiny components, etc
 
-        tissue_ratio = float(tissue.mean())
+        tissue_ratio = float(tissue.mean()) # computing how much of thumbnail is tissue
         self.logger.info("Otsu threshold (gray) = %.6f", otsu_t)
         self.logger.info("Mask tissue ratio = %.6f", tissue_ratio)
 
-        if tissue_ratio <= 0.0:
+        if tissue_ratio <= 0.0: # error if no tissue is found
             self.logger.error("No tissue found in thumbnail mask.")
             raise NoTissueFoundError(
                 f"No tissue found in slide thumbnail: {wsi_handle.image_path}"
@@ -340,13 +347,14 @@ class PatchSampler:
             "thumbnail_rgb": thumbnail_rgb,
             "mask_level": mask_level,
         }
-
+    
+    # Decides which WSI level is small enough for tissue masking
     def _select_mask_level(self, wsi_handle: WSIHandle) -> int:
         """
-        Select the coarsest level whose longest side is <= mask_longest_side.
+        Select the lowest resolution (highest level) whose longest side is <= mask_longest_side.
         If none satisfy it, choose the coarsest available level.
         """
-        selected_level = len(wsi_handle.level_dimensions) - 1
+        selected_level = len(wsi_handle.level_dimensions) - 1 # since there are 4 levels but starts from 0
 
         for level, dims in enumerate(wsi_handle.level_dimensions):
             longest_side = max(dims)
@@ -355,13 +363,14 @@ class PatchSampler:
                 break
 
         return selected_level
-
+    
+    # Receives tissue mask and returns list of valid PatchRefs
     def _generate_patch_refs(
         self,
         wsi_handle: WSIHandle,
         tissue_mask: np.ndarray,
         mask_level: int,
-        tissue_threshold: float,
+        tissue_threshold: float, # min tissue fraction requires to accept a patch
     ) -> list[PatchRef]:
         """
         Deterministic grid generation:
@@ -370,24 +379,25 @@ class PatchSampler:
         Patch size and stride are defined in read-level coordinates.
         """
         read_w, read_h = wsi_handle.level_dimensions[self.read_level]
-        read_ds = float(wsi_handle.level_downsamples[self.read_level])
-        mask_ds = float(wsi_handle.level_downsamples[mask_level])
+        read_ds = float(wsi_handle.level_downsamples[self.read_level]) # get downsampling factor of read level
+        mask_ds = float(wsi_handle.level_downsamples[mask_level])      # get downsampling factor of mask level
 
         refs: list[PatchRef] = []
 
-        max_y = read_h - self.patch_size
+        # Edge handling: choose top-left corner so that the full patch still fits inside the image
+        max_y = read_h - self.patch_size #If starting point is more than this value, it is invalid
         max_x = read_w - self.patch_size
 
-        for y in range(0, max_y + 1, self.stride):
-            for x in range(0, max_x + 1, self.stride):
-                if self._patch_tissue_fraction(
+        for y in range(0, max_y + 1, self.stride): # Iterating down the slide
+            for x in range(0, max_x + 1, self.stride): # Iterating across each row
+                if self._patch_tissue_fraction( # checking how much of this patch is tissue
                     x=x,
                     y=y,
                     tissue_mask=tissue_mask,
                     read_ds=read_ds,
                     mask_ds=mask_ds,
                 ) >= tissue_threshold:
-                    ref = wsi_handle.make_ref(
+                    ref = wsi_handle.make_ref( #If valid, create PatchRef
                         pos=(x, y),
                         level=self.read_level,
                         dim=(self.patch_size, self.patch_size),
@@ -398,11 +408,11 @@ class PatchSampler:
 
     def _patch_tissue_fraction(
         self,
-        x: int,
+        x: int,         #top left coordinate of the patch
         y: int,
         tissue_mask: np.ndarray,
-        read_ds: float,
-        mask_ds: float,
+        read_ds: float, #downsample factor of read level
+        mask_ds: float, #downsample factor of mask level
     ) -> float:
         """
         Compute how much of this read-level patch is tissue in the thumbnail mask.
@@ -411,12 +421,15 @@ class PatchSampler:
         """
         scale = read_ds / mask_ds
 
+        # Compute top left corner of the patch in mask-level coordinates
         mx0 = int(math.floor(x * scale))
         my0 = int(math.floor(y * scale))
+        # Convert bottom-right boundary of patch in mask-level coordinates
         mx1 = int(math.ceil((x + self.patch_size) * scale))
         my1 = int(math.ceil((y + self.patch_size) * scale))
 
-        h, w = tissue_mask.shape
+        h, w = tissue_mask.shape # Get height and width of tissue mask array
+        # Keep all coordinates within valid bounds
         mx0 = max(0, min(mx0, w))
         mx1 = max(0, min(mx1, w))
         my0 = max(0, min(my0, h))
@@ -425,7 +438,7 @@ class PatchSampler:
         if mx1 <= mx0 or my1 <= my0:
             return 0.0
 
-        patch_mask = tissue_mask[my0:my1, mx0:mx1]
+        patch_mask = tissue_mask[my0:my1, mx0:mx1] #Extract corresponding patch region from tissue mask
         if patch_mask.size == 0:
             return 0.0
 
@@ -450,27 +463,28 @@ class PatchSampler:
         sat[cmax <= 1e-8] = 0.0
         return sat
 
+    # Receives grayscale image whose values are in range [0(very dark), 1(very bright)]; finds threshold that separates image into 2 groups
     def _otsu_threshold(self, gray: np.ndarray) -> float:
         """
         Otsu threshold on [0,1] grayscale.
         """
-        values = np.clip((gray * 255.0).astype(np.uint8), 0, 255)
-        hist = np.bincount(values.ravel(), minlength=256).astype(np.float64)
-        total = hist.sum()
-        if total <= 0:
+        values = np.clip((gray * 255.0).astype(np.uint8), 0, 255) #convert grayscale from [0,1] to [0,255]
+        hist = np.bincount(values.ravel(), minlength=256).astype(np.float64) #make histogram of grayscale intensity bins
+        total = hist.sum() #adds up all histogram counts
+        if total <= 0: #if there are no pixels - error
             raise NoTissueFoundError("Empty grayscale histogram while building mask.")
 
-        prob = hist / total
-        omega = np.cumsum(prob)
-        mu = np.cumsum(prob * np.arange(256))
-        mu_t = mu[-1]
+        prob = hist / total #convert histogram to probabilities
+        omega = np.cumsum(prob) #total % of all gray levels - eg. omega[t] : total % of all darker levels from 0 till t
+        mu = np.cumsum(prob * np.arange(256)) #cumulative weighted sum of grayscale values up to threshold t
+        mu_t = mu[-1] # mu[-1] is the last value of mu - the total mean intensity of the whole image
 
-        sigma_b2 = np.zeros(256, dtype=np.float64)
+        sigma_b2 = np.zeros(256, dtype=np.float64) # creates an array of 256 zeros.
         denom = omega * (1.0 - omega)
-        valid = denom > 0
-        sigma_b2[valid] = ((mu_t * omega[valid] - mu[valid]) ** 2) / denom[valid]
+        valid = denom > 0 # checking if denominator is positive
+        sigma_b2[valid] = ((mu_t * omega[valid] - mu[valid]) ** 2) / denom[valid] #compute how well that threshold separates the image into two classes.
 
-        threshold = np.argmax(sigma_b2) / 255.0
+        threshold = np.argmax(sigma_b2) / 255.0 #the index where sigma_b2 is largest
         return float(threshold)
 
     def _clean_binary_mask(self, mask: np.ndarray) -> np.ndarray:
@@ -484,12 +498,12 @@ class PatchSampler:
         structure = np.ones(
             (self.morphology_kernel_size, self.morphology_kernel_size),
             dtype=bool
-        )
+        ) # Create np with 1s
 
-        cleaned = ndi.binary_opening(mask, structure=structure)
-        cleaned = ndi.binary_closing(cleaned, structure=structure)
-        cleaned = ndi.binary_fill_holes(cleaned)
-        cleaned = self._remove_small_objects(cleaned, self.min_mask_region_area)
+        cleaned = ndi.binary_opening(mask, structure=structure) #Remove if mask has tiny isolated tissue dots caused by noise
+        cleaned = ndi.binary_closing(cleaned, structure=structure) #Repair if tissue regions have little breaks or narrow holes
+        cleaned = ndi.binary_fill_holes(cleaned) #fill background holes surrounded by tissue
+        cleaned = self._remove_small_objects(cleaned, self.min_mask_region_area) #remove connected components that are too small
         return cleaned.astype(bool)
 
     def _remove_small_objects(self, mask: np.ndarray, min_size: int) -> np.ndarray:
@@ -515,20 +529,24 @@ class PatchSampler:
         patch_refs: list[PatchRef],
         mode: str,
     ) -> None:
+        # Specifying output file paths
         stem = Path(wsi_handle.image_path).stem
         thumb_path = self.result_dir / f"{stem}_{mode}_thumbnail.png"
         mask_path = self.result_dir / f"{stem}_{mode}_tissue_mask.png"
         overlay_path = self.result_dir / f"{stem}_{mode}_mask_overlay.png"
         json_path = self.result_dir / f"{stem}_{mode}_patch_refs.json"
 
-        thumbnail_rgb.save(thumb_path)
+        thumbnail_rgb.save(thumb_path) #save thumbnail (low res RGB image of slide)
 
+        # Convert tisuse mask into savable image; binary array -> actual image file
         mask_img = Image.fromarray((tissue_mask.astype(np.uint8) * 255), mode="L")
         mask_img.save(mask_path)
 
+        # Overlay: where the mask lies on top of the actual slide image - the image version of the mask
         overlay = self._make_overlay(thumbnail_rgb, tissue_mask)
         overlay.save(overlay_path)
 
+        #Build a Python dictionary that will later be saved as JSON
         payload = {
             "image_path": str(wsi_handle.image_path),
             "mode": mode,
