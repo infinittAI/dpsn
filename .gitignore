@@ -1,3 +1,6 @@
 .DS_Store
-data/
+data/uploads/*
+data/results/*
+!data/uploads/.gitkeep
+!data/results/.gitkeep
 .vscode/

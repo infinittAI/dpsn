@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks
 from schemas import JobResponse, JobStatusResponse, JobResultResponse
-from services import job_runner
+from services import job_runner, image_store
 
 router = APIRouter()
 
@@ -11,11 +11,9 @@ async def create_job(
     image: UploadFile = File(...),
     model_ids: str = Form(...)
 ):
-    model_id_list = [int(x) for x in model_ids.split(",")]    
-    
-    image_bytes = await image.read()    
-    
-    return [JobResponse(job_id = job_runner.create_job(mid, image_bytes, background_tasks)) for mid in model_id_list]
+    model_id_list = [int(x) for x in model_ids.split(",")]
+    image_id = image_store.save_image(image)
+    return [JobResponse(job_id=job_runner.create_job(mid, image_id, background_tasks)) for mid in model_id_list]
 
 # job_id로 job을 조회하고 현재 status를 반환
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
@@ -40,5 +38,6 @@ async def get_job_results(job_id: str):
     return {
         "job_id": job_id,
         "status": "done",
+        "result_image_id": job["result_image_id"],
         "metrics": job["result"]
     }
