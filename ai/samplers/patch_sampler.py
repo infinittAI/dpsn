@@ -1,7 +1,7 @@
 
 """
 Inference Run Example:
-    python -m ai.wsi.patch_sampler \
+    python -m ai.samplers.patch_sampler \
     --image /path/to/your_slide.tiff \
     --mode inference \
     --patch-size 256 \
@@ -9,7 +9,7 @@ Inference Run Example:
     --save-debug
 
 Training Run Example:
-    python -m ai.wsi.patch_sampler \
+    python -m ai.samplers.patch_sampler \
     --image /path/to/your_slide.tiff \
     --mode training \
     --patch-size 256 \
