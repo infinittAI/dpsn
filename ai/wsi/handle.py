@@ -6,7 +6,15 @@ import openslide
 
 from ai.wsi.patch_ref import PatchRef
 
-@dataclass
+class WSIHandleError(RuntimeError):
+    """Base class for WSI Handle errors."""
+
+
+class UnsupportedWSIFormatError(WSIHandleError):
+    """Raised when the file format is not supported by the WSI backend."""
+
+
+@dataclass(frozen=True, slots=True)
 class WSIHandle:
     image_path: Path
     dim: tuple[int, int]
