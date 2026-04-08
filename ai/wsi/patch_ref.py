@@ -15,13 +15,13 @@ class PatchRef:
     Coordinate convention
     ---------------------
     OpenSlide.read_region(location, level, size) expects:
-      - location: (x, y) in level-0 coordinates
-      - level: pyramid level to read from
-      - size: (width, height) in pixels at that level
+    - location: (x, y) in level-0 coordinates
+    - level: pyramid level to read from
+    - size: (width, height) in pixels at that level
 
     Therefore, in this PatchRef:
-      - x, y are level-0 coordinates
-      - width, height are pixel sizes at read_level
+    - x, y are level-0 coordinates
+    - width, height are pixel sizes at read_level
     """
 
     image_path: Path  #path to WSI file

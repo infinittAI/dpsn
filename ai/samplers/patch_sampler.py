@@ -1,7 +1,7 @@
 
 """
 Inference Run Example:
-  python -m ai.wsi.patch_sampler \
+    python -m ai.wsi.patch_sampler \
     --image /path/to/your_slide.tiff \
     --mode inference \
     --patch-size 256 \
@@ -9,7 +9,7 @@ Inference Run Example:
     --save-debug
 
 Training Run Example:
-  python -m ai.wsi.patch_sampler \
+    python -m ai.wsi.patch_sampler \
     --image /path/to/your_slide.tiff \
     --mode training \
     --patch-size 256 \
@@ -71,11 +71,11 @@ class PatchSampler:
     Patch sampler for WSI tissue masking + patch coordinate generation.
 
     Supports:
-      - tissue masking on a low-resolution thumbnail
-      - deterministic grid generation
-      - training/inference mode thresholds
-      - random subsampling for training when max_patches is set
-      - debug image saving + text logging
+    - tissue masking on a low-resolution thumbnail
+    - deterministic grid generation
+    - training/inference mode thresholds
+    - random subsampling for training when max_patches is set
+    - debug image saving + text logging
 
     Notes
     - Patch coordinates are generated at `read_level`.
@@ -301,11 +301,11 @@ class PatchSampler:
         Build tissue mask from a low-resolution thumbnail.
 
         Method:
-          1) choose low-res level automatically based on mask_longest_side
-          2) read entire level as RGB
-          3) compute grayscale + saturation
-          4) tissue candidate = not-too-white AND (dark-enough OR saturated-enough)
-          5) morphology cleanup
+        1) choose low-res level automatically based on mask_longest_side
+        2) read entire level as RGB
+        3) compute grayscale + saturation
+        4) tissue candidate = not-too-white AND (dark-enough OR saturated-enough)
+        5) morphology cleanup
         """
         mask_level = self._select_mask_level(wsi_handle)
         level_w, level_h = wsi_handle.level_dimensions[mask_level] #getting width and height at the chosen level
@@ -490,10 +490,10 @@ class PatchSampler:
     def _clean_binary_mask(self, mask: np.ndarray) -> np.ndarray:
         """
         Morphology cleanup:
-          - opening
-          - closing
-          - fill holes
-          - remove small objects
+        - opening
+        - closing
+        - fill holes
+        - remove small objects
         """
         structure = np.ones(
             (self.morphology_kernel_size, self.morphology_kernel_size),
