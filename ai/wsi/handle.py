@@ -6,6 +6,13 @@ import openslide
 
 from ai.wsi.patch_ref import PatchRef
 
+class WSIHandleError(RuntimeError):
+    """Base class for WSI Handle errors."""
+
+
+class UnsupportedWSIFormatError(WSIHandleError):
+    """Raised when the file format is not supported by the WSI backend."""
+
 @dataclass
 class WSIHandle:
     image_path: Path          #file path of WSI
@@ -24,14 +31,14 @@ class WSIHandle:
             )
         
         # Image의 범위가 유효한지 확인
-        img_width, img_height = self.level_dimensions[level]  #get image size at that level
+        img_width, img_height = self.level_dimensions[level]
 
-        if not (0 <= pos[0] <= img_width - dim[0]): #check if patch fits horizontally
+        if not (0 <= pos[0] <= img_width - dim[0]):
             raise ValueError(
                 f"Invalid width range: {(pos[0], pos[0] + dim[0])} for {(0, img_width)}"
             )
         
-        if not (0 <= pos[1] <= img_height - dim[1]): #check if patch fits vertically
+        if not (0 <= pos[1] <= img_height - dim[1]):
             raise ValueError(
                 f"Invalid height range: {(pos[1], pos[1] + dim[1])} for {(0, img_height)}"
             )
@@ -43,14 +50,14 @@ class WSIHandle:
         level0_y = int(round(pos[1] * downsample))
         
         return PatchRef(
-          image_path=self.image_path,
-          x=level0_x,
-          y=level0_y,
-          width=int(dim[0]),
-          height=int(dim[1]),
-          read_level=int(level),
-          mpp_x=float(self.mpp[0]),
-          mpp_y=float(self.mpp[1]),
+            image_path=self.image_path,
+            x=level0_x,
+            y=level0_y,
+            width=int(dim[0]),
+            height=int(dim[1]),
+            read_level=int(level),
+            mpp_x=float(self.mpp[0]),
+            mpp_y=float(self.mpp[1]),
         )
 
 

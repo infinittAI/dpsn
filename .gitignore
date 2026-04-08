@@ -3,3 +3,10 @@ data/
 .venv/
 venv/
 requirements.txt
+data/uploads/*
+data/results/*
+!data/uploads/.gitkeep
+!data/results/.gitkeep
+.venv/
+__pycache__/
+.vscode/
