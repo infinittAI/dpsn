@@ -13,20 +13,19 @@ class WSIHandleError(RuntimeError):
 class UnsupportedWSIFormatError(WSIHandleError):
     """Raised when the file format is not supported by the WSI backend."""
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass
 class WSIHandle:
-    image_path: Path
-    dim: tuple[int, int]
-    mpp: tuple[float, float]
-    level_dimensions: tuple
-    level_downsamples: tuple
+    image_path: Path          #file path of WSI
+    dim: tuple[int, int]      #full image size at lv 0
+    mpp: tuple[float, float]  #microns per pixel for x, y
+    level_dimensions: tuple   #image size for each pyramid level eg. (80000, 60000), (20000, 15000),...
+    level_downsamples: tuple  #how much each level is downsampled relative to lv 0 eg. 4 : downsampled by 4
     
-    # 해당 레벨에서, Image의 (pos[0], pos[1]) 부터 (pos[0] + dim[0], pos[1] + dim[1]) 까지의 범위를 crop
-    def make_ref(self, pos: tuple, level: int, dim: tuple) -> PatchRef:
-        level_count = len(self.level_dimensions)
+    # 해당 레벨에서, Image의 (pos[0], pos[1]) 부터 (pos[0] + dim[0], pos[1] + dim[1]) 까지의 범위를 crop. PatchRef object 를 만든다.
+    def make_ref(self, pos: tuple[int, int], level: int, dim: tuple[int, int]) -> PatchRef:
+        level_count = len(self.level_dimensions) #count how many levels exist
 
-        if not (0 <= level < level_count):
+        if not (0 <= level < level_count): #check if requested level is valid
             raise ValueError(
                 f"Level: {level} must be within [0, {level_count - 1}]"
             )
@@ -44,7 +43,22 @@ class WSIHandle:
                 f"Invalid height range: {(pos[1], pos[1] + dim[1])} for {(0, img_height)}"
             )
         
-        return PatchRef()
+        downsample = float(self.level_downsamples[level]) #get downsample factor for that lv eg. 1 px at lv2 = 16 px at lv0
+
+        # OpenSlide read_region() uses level-0 coordinates for location - convert patch position to lv0 coordinates
+        level0_x = int(round(pos[0] * downsample))
+        level0_y = int(round(pos[1] * downsample))
+        
+        return PatchRef(
+            image_path=self.image_path,
+            x=level0_x,
+            y=level0_y,
+            width=int(dim[0]),
+            height=int(dim[1]),
+            read_level=int(level),
+            mpp_x=float(self.mpp[0]),
+            mpp_y=float(self.mpp[1]),
+        )
 
 
 # 사용자로부터 Image path를 전달받아서, 
@@ -76,4 +90,4 @@ def open_wsi_handle(image_path: str | os.PathLike[str]) -> WSIHandle:
                 level_downsamples = level_downsamples,
             )
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Unsupported WSI format for OpenSlide: {image_path}")
