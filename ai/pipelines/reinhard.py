@@ -28,8 +28,6 @@ class Reinhard(ModelPipeline):
         src_wsi_handle = open_wsi_handle(src_img_path)
         target_wsi_handle = open_wsi_handle(target_img_path)
 
-        
-
         target_ref = self.target_sampler.sample(target_wsi_handle, max_patches=1)[0]
         target_patch = load_patch(target_ref)
 
