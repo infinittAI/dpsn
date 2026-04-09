@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-import os
+from pathlib import Path
 
 from ai.pipelines.result import PipelineResult
 
@@ -10,6 +10,6 @@ class ModelPipeline(ABC):
     @abstractmethod
     def run(
         self, 
-        src_img_path: str | os.PathLike[str], 
-        target_img_path: str | os.PathLike[str] | None
+        src_img_path: Path, 
+        target_img_path: Path | None
     ) -> PipelineResult: ...
