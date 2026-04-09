@@ -11,7 +11,7 @@ class Metrics:
 class Task:
     src_img_path: Path
     target_img_path: Path | None
-    model_id: int  # models.json의 id와 대응
+    model_id: int 
 
 @dataclass
 class TaskResult:

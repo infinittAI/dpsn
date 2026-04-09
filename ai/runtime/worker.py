@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from ai.runtime.task import Task, TaskResult, Metrics
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.reinhard import Reinhard
@@ -26,6 +28,6 @@ class Worker:
         metrics = Metrics(ssim=0.95, psnr=32.4, fid=60)
 
         return TaskResult(
-            result_img_path=result.output_path,
+            result_img_path=Path(result.output_path),
             metrics=metrics
         )

@@ -1,10 +1,7 @@
 import uuid
 import dataclasses
-import sys
 from pathlib import Path
 from fastapi import BackgroundTasks
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from ai.runtime.task import Task
 from ai.runtime.worker import Worker
