@@ -12,7 +12,7 @@ class GridSampler:
         self.stride = stride
         self.read_level = read_level
     
-    def sampler(
+    def sample(
         self, 
         wsi_handle: WSIHandle
     ):
