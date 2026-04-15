@@ -14,7 +14,7 @@ async def get_image(image_id: str):
         raise HTTPException(status_code=404, detail="Image not found")
 
     file_path = Path(path)
-    if not file_path.exists():
+    if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Image file not found on disk")
 
     return FileResponse(file_path)
