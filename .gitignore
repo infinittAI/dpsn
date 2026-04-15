@@ -11,3 +11,4 @@ data/results/*
 __pycache__/
 .vscode/
 result_smoke
+result/
