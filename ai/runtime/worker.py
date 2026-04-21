@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from ai.metrics.ssim import SSIM
 from ai.runtime.task import Task, TaskResult, Metrics
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.reinhard import Reinhard
@@ -24,8 +25,11 @@ class Worker:
 
         result = pipeline.run(task.src_img_path, task.target_img_path)
 
-        # TODO: ai/metrics/ 구현 후 실제 metrics 계산으로 교체
-        metrics = Metrics(ssim=0.95, psnr=32.4, fid=60)
+        metrics = Metrics(
+            SSIM().evaluate(str(task.src_img_path), result.output_path),
+            0.95,
+            0.94
+        )
 
         return TaskResult(
             result_img_path=Path(result.output_path),

@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 from skimage import color
 
+from ai.metrics.base import Metric
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler
@@ -21,7 +22,8 @@ class Reinhard(ModelPipeline):
     def run(
         self,
         src_img_path: Path, 
-        target_img_path: Path | None
+        target_img_path: Path | None,
+        metrics: dict[str, Metric]
     ) -> PipelineResult:
         
         if target_img_path is None:
@@ -47,7 +49,7 @@ class Reinhard(ModelPipeline):
             new_img = self.transform_image(new_img, target_means, target_stds, src_means, src_stds)
             total_images.append(new_img)
 
-        raise NotImplementedError
+        return PipelineResult(output_path=str(target_img_path))
         
     
     def get_reinhard_stats(self, image: np.ndarray):

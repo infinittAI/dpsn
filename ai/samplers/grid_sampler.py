@@ -20,8 +20,8 @@ class GridSampler:
         stride = self.patch_size if self.stride is None else self.stride
 
         patch_refs = []
-        for i in range(0, size[0], stride):
-            for j in range(0, size[1], stride):
+        for i in range(0, size[0] - stride + 1, stride):
+            for j in range(0, size[1] - stride + 1, stride):
                 patch_ref = wsi_handle.make_ref(
                     pos = (i, j),
                     level = self.read_level,

@@ -7,5 +7,5 @@ class Metric(ABC):
         pass
 
     @abstractmethod
-    def evaluate(self, origin_image: WSIHandle, normalized_image: WSIHandle) -> float:
+    def evaluate(self, origin_image_path: str, normalized_image_path: str) -> float:
         pass

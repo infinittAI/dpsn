@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from ai.metrics.base import Metric
 from ai.pipelines.result import PipelineResult
 
 class ModelPipeline(ABC):
@@ -11,5 +12,6 @@ class ModelPipeline(ABC):
     def run(
         self, 
         src_img_path: Path, 
-        target_img_path: Path | None
+        target_img_path: Path | None,
+        metrics: dict[str, Metric]
     ) -> PipelineResult: ...

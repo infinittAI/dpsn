@@ -4,7 +4,8 @@ from ai.wsi.handle import open_wsi_handle
 from ai.samplers.patch_sampler import PatchSampler
 from ai.wsi.loader import load_patch
 
-slide_path = Path("../patient_178/patient_178_node_1.tif") #relative to dpsn directory
+# slide_path = Path("../patient_178/patient_178_node_1.tif") #relative to dpsn directory
+slide_path = Path("data/GTEX-1117F-0126.svs")
 
 # Run command (run from dpsn directory): python -m ai.wsi.smoke_test
 
