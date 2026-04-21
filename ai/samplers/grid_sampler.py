@@ -15,7 +15,7 @@ class GridSampler:
     def sample(
         self, 
         wsi_handle: WSIHandle
-    ):
+    ) -> list[PatchRef]:
         size = wsi_handle.level_dimensions[self.read_level]
         stride = self.patch_size if self.stride is None else self.stride
 

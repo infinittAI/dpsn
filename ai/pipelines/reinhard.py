@@ -2,6 +2,9 @@ from pathlib import Path
 
 import numpy as np
 from skimage import color
+import time
+from collections import defaultdict
+from tqdm import tqdm
 
 from ai.metrics.base import Metric
 from ai.pipelines.base import ModelPipeline
@@ -10,6 +13,7 @@ from ai.samplers.grid_sampler import GridSampler
 from ai.samplers.patch_sampler import PatchSampler
 from ai.wsi.handle import open_wsi_handle
 from ai.wsi.loader import load_patch
+from ai.wsi.writer import ZarrWSIWriter
 
 class Reinhard(ModelPipeline):
     target_sampler: PatchSampler
@@ -42,14 +46,38 @@ class Reinhard(ModelPipeline):
 
         src_refs = self.grid_sampler.sample(src_wsi_handle)
 
-        total_images = []
-        for ref in src_refs:
-            patch = load_patch(ref)
-            new_img = patch.img.copy()
-            new_img = self.transform_image(new_img, target_means, target_stds, src_means, src_stds)
-            for key, metric in metrics.items():
-                metric.evaluate(patch.img, new_img)
-            total_images.append(new_img)
+        scores = dict()
+        batch_size = 64
+        writer = ZarrWSIWriter(
+            "out_img", 
+            src_ref.width, 
+            src_ref.height,
+            tile_size = src_refs[0].read_size[0]
+        )
+        times = defaultdict(float)
+
+        for idx in tqdm(range(0, len(src_refs)//100, batch_size)):
+            batch_ref = src_refs[idx:idx + batch_size]
+            t0 = time.perf_counter()
+            patches = np.stack([load_patch(ref).img for ref in batch_ref], axis=0)
+            times["load"] += time.perf_counter() - t0
+            
+            t0 = time.perf_counter()
+            new_patches = self.transform_image(patches, target_means, target_stds, src_means, src_stds)
+            times["transform"] += time.perf_counter() - t0
+            
+            t0 = time.perf_counter()
+            for i, ref in enumerate(batch_ref):
+                for key, metric in metrics.items():
+                    metric.evaluate(patches[i], new_patches[i])
+            times["metric"] += time.perf_counter() - t0
+
+            t0 = time.perf_counter()
+            for i, ref in enumerate(batch_ref):
+                writer.write_patch(ref, new_patches[i])
+            times["write"] += time.perf_counter() - t0
+                
+        print(dict(times))
 
         return PipelineResult(output_path=str(target_img_path))
         
@@ -81,12 +109,12 @@ class Reinhard(ModelPipeline):
         src_means: np.ndarray,
         src_stds: np.ndarray, 
     ) -> np.ndarray:
-        image = image.transpose([1, 2, 0])
+        image = image.transpose([0, 2, 3, 1])
 
         lab = color.rgb2lab(image)
         lab = (lab - src_means)/src_stds * target_stds + target_means
         
         image = color.lab2rgb(image)
-        image = image.transpose([2, 0, 1])
+        image = image.transpose([0, 3, 1, 2])
 
         return image

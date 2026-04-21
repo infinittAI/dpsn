@@ -23,10 +23,10 @@ class Worker:
         if pipeline is None:
             raise NotImplementedError(f"model_id {task.model_id}에 해당하는 pipeline이 없습니다.")
 
-        result = pipeline.run(task.src_img_path, task.target_img_path)
+        result = pipeline.run(task.src_img_path, task.target_img_path, {"ssim": SSIM()})
 
         metrics = Metrics(
-            SSIM().evaluate(str(task.src_img_path), result.output_path),
+            1.0,
             0.95,
             0.94
         )
