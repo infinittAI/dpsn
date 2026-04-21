@@ -1,8 +1,10 @@
+import type { CSSProperties, ReactNode } from 'react';
+
 interface TissueSvgProps {
   seed?: number;
   tint?: string | null;
   intensity?: number;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   mode?: 'h-e' | 'norm' | 'dim' | 'pale' | 'blue';
 }
 
@@ -78,8 +80,8 @@ interface WsiViewProps {
   showGrid?: boolean;
   chip?: string;
   chipColor?: string;
-  style?: React.CSSProperties;
-  children?: React.ReactNode;
+  style?: CSSProperties;
+  children?: ReactNode;
 }
 
 export function WsiView({ label, sublabel, seed, mode = 'h-e', tint, intensity = 1,

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import './styles.css';
 import { MODELS } from './data';
 import type { UiJob, JobResult } from './types';
@@ -35,7 +36,7 @@ function Topbar({ file, selectedCount, onRun, running, onReset, title, viewingJo
             <button className="btn ghost sm" onClick={onReset}>
               <Icon name="history" size={14}/> 초기화
             </button>
-            <button className="btn primary" disabled={!canRun} onClick={onRun}>
+            <button className="btn primary" disabled={!canRun || running} onClick={onRun}>
               <Icon name="play" size={13}/>
               {running ? '실행 중…' : selectedCount > 1 ? `${selectedCount}개 모델 실행` : '실행'}
             </button>
@@ -46,7 +47,7 @@ function Topbar({ file, selectedCount, onRun, running, onReset, title, viewingJo
   );
 }
 
-function StatusLine({ ok, children }: { ok?: boolean; children: React.ReactNode }) {
+function StatusLine({ ok, children }: { ok?: boolean; children: ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: ok ? 'var(--text)' : 'var(--text-muted)' }}>
       <span style={{ width: 14, height: 14, borderRadius: '50%', background: ok ? 'color-mix(in oklab, var(--success) 15%, var(--panel))' : 'var(--bg-sunken)', color: ok ? 'var(--success)' : 'var(--text-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -60,7 +61,7 @@ function StatusLine({ ok, children }: { ok?: boolean; children: React.ReactNode 
 function ConfigColumn({ file, onPickFile, onClearFile, selected, onToggleModel, onRun, running, fileInputRef }: {
   file: File | null; onPickFile: (f: File) => void; onClearFile: () => void;
   selected: Set<number>; onToggleModel: (id: number) => void;
-  onRun: () => void; running: boolean; fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onRun: () => void; running: boolean; fileInputRef: { current: HTMLInputElement | null };
 }) {
   const canRun = file && selected.size > 0;
   const selectedModels = [...selected].map(id => MODELS.find(m => m.id === id)!).filter(Boolean);
@@ -81,7 +82,7 @@ function ConfigColumn({ file, onPickFile, onClearFile, selected, onToggleModel, 
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 14 }}>
               1. WSI 이미지 업로드
             </div>
-            <UploadCard file={file} onPick={() => fileInputRef.current?.click()} onClear={onClearFile}/>
+            <UploadCard file={file} onPick={(f) => f ? onPickFile(f) : fileInputRef.current?.click()} onClear={onClearFile}/>
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, minHeight: 22 }}>
@@ -106,7 +107,7 @@ function ConfigColumn({ file, onPickFile, onClearFile, selected, onToggleModel, 
               ? <StatusLine ok>모델 {selected.size}개: {selectedModels.map(m => m.name).join(', ')}</StatusLine>
               : <StatusLine>선택된 모델 없음</StatusLine>}
           </div>
-          <button className="btn primary lg" disabled={!canRun} onClick={onRun} style={{ flexShrink: 0 }}>
+          <button className="btn primary lg" disabled={!canRun || running} onClick={onRun} style={{ flexShrink: 0 }}>
             <Icon name="play" size={14}/>
             {running ? '실행 중…' : selected.size > 1 ? `모델 ${selected.size}개 실행` : '정규화 실행'}
           </button>
@@ -183,40 +184,43 @@ export default function App() {
       setJobs(prev => [newJob, ...prev]);
 
       const results: Record<number, JobResult> = {};
-      const doneSet = new Set<number>();
+      const finishedSet = new Set<number>();
+      const failedSet = new Set<number>();
 
       pollingRef.current = setInterval(async () => {
         for (let i = 0; i < jobIds.length; i++) {
           const jobId = jobIds[i];
           const modelId = modelIds[i];
-          if (doneSet.has(modelId)) continue;
+          if (finishedSet.has(modelId)) continue;
           try {
             const status = await getJobStatus(jobId);
             if (status.status === 'done') {
               const result = await getJobResult(jobId);
               results[modelId] = { metrics: result.metrics, result_image_id: result.result_image_id };
-              doneSet.add(modelId);
+              finishedSet.add(modelId);
             } else if (status.status === 'failed') {
-              doneSet.add(modelId);
+              failedSet.add(modelId);
+              finishedSet.add(modelId);
             }
-          } catch {
-            doneSet.add(modelId);
+          } catch (err) {
+            console.warn('Polling error, will retry:', err);
           }
         }
 
         setJobs(prev => prev.map(j => j.id === uiJobId
-          ? { ...j, progress: doneSet.size / jobIds.length }
+          ? { ...j, progress: finishedSet.size / jobIds.length }
           : j
         ));
 
-        if (doneSet.size >= jobIds.length) {
+        if (finishedSet.size >= jobIds.length) {
           if (pollingRef.current) clearInterval(pollingRef.current);
           setRunning(false);
+          const allFailed = failedSet.size === jobIds.length;
           setJobs(prev => prev.map(j => j.id === uiJobId
-            ? { ...j, status: 'done', results, when: '방금' }
+            ? { ...j, status: allFailed ? 'failed' : 'done', results, when: '방금' }
             : j
           ));
-          setActiveJobId(uiJobId);
+          if (!allFailed) setActiveJobId(uiJobId);
         }
       }, 1500);
     } catch (err) {
