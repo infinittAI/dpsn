@@ -9,6 +9,8 @@ data/results/*
 !data/results/.gitkeep
 .venv/
 __pycache__/
+*.py[cod]
+*$py.class
 .vscode/
 result_smoke
 result/
