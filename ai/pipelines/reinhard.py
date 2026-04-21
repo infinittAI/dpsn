@@ -47,6 +47,8 @@ class Reinhard(ModelPipeline):
             patch = load_patch(ref)
             new_img = patch.img.copy()
             new_img = self.transform_image(new_img, target_means, target_stds, src_means, src_stds)
+            for key, metric in metrics.items():
+                metric.evaluate(patch.img, new_img)
             total_images.append(new_img)
 
         return PipelineResult(output_path=str(target_img_path))
