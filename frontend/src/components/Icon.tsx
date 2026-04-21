@@ -1,9 +1,11 @@
+import type { CSSProperties } from 'react';
+
 interface IconProps {
   name: string;
   size?: number;
   color?: string;
   strokeWidth?: number;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 export default function Icon({ name, size = 18, color = 'currentColor', strokeWidth = 1.6, style }: IconProps) {

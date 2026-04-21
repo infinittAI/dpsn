@@ -6,7 +6,7 @@ import { TissueSvg } from './WsiImage';
 
 interface UploadCardProps {
   file: File | null;
-  onPick: () => void;
+  onPick: (f?: File) => void;
   onClear: () => void;
 }
 
@@ -43,7 +43,7 @@ export function UploadCard({ file, onPick, onClear }: UploadCardProps) {
       }}
       onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
-      onDrop={(e) => { e.preventDefault(); setDrag(false); onPick(); }}
+      onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; onPick(f); }}
     >
       <div style={{ width: 44, height: 44, margin: '0 auto 12px', borderRadius: 12, background: 'var(--accent-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
         <Icon name="upload" size={20}/>

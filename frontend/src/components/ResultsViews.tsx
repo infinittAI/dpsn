@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import { METRIC_DEFS } from '../data';
 import type { MetricDef, ModelUi, JobResult } from '../types';
 import Icon from './Icon';
@@ -142,8 +143,8 @@ export function MultiDashboard({ models, results }: MultiDashboardProps) {
     best[def.key] = vals[0].id;
   });
 
-  const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 16px', fontWeight: 600 };
-  const tdStyle: React.CSSProperties = { padding: '14px 16px', verticalAlign: 'middle' };
+  const thStyle: CSSProperties = { textAlign: 'left', padding: '10px 16px', fontWeight: 600 };
+  const tdStyle: CSSProperties = { padding: '14px 16px', verticalAlign: 'middle' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 24 }}>
@@ -163,7 +164,7 @@ export function MultiDashboard({ models, results }: MultiDashboardProps) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 10 }}>
                 {METRIC_DEFS.map(def => {
                   const isBest = best[def.key] === m.id;
-                  const val = r?.metrics[def.key as keyof typeof r.metrics] ?? 0;
+                  const val = r?.metrics[def.key as keyof JobResult['metrics']] ?? 0;
                   return (
                     <div key={def.key} style={{ padding: '6px 8px', borderRadius: 'var(--r-sm)', background: isBest ? 'color-mix(in oklab, var(--success) 10%, var(--panel))' : 'var(--bg-sunken)', border: isBest ? '1px solid color-mix(in oklab, var(--success) 30%, transparent)' : '1px solid transparent' }}>
                       <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
@@ -222,7 +223,7 @@ export function MultiDashboard({ models, results }: MultiDashboardProps) {
                   </td>
                   {METRIC_DEFS.map(def => {
                     const isBest = best[def.key] === m.id;
-                    const val = r?.metrics[def.key as keyof typeof r.metrics] ?? 0;
+                    const val = r?.metrics[def.key as keyof JobResult['metrics']] ?? 0;
                     return (
                       <td key={def.key} style={{ ...tdStyle, textAlign: 'right' }} className="num">
                         <span style={{ fontWeight: isBest ? 600 : 500, color: isBest ? 'var(--success)' : 'var(--text)' }}>
