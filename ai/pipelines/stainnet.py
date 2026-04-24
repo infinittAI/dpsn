@@ -5,15 +5,15 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image
 import torch
 
 from ai.models.stainnet_model import StainNet
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.result import PipelineResult
-from ai.wsi.handle import WSIHandle, open_wsi_handle
+from ai.samplers.grid_sampler import GridSampler
+from ai.wsi.handle import open_wsi_handle
 from ai.wsi.loader import load_patch
-from ai.wsi.patch_ref import PatchRef
+from ai.wsi.writer import RegularTiffWSIWriter
 
 
 @dataclass(slots=True)
@@ -44,7 +44,7 @@ class StainNetConfig:
     device: str = "auto"
 
 
-class StainNetPipeline(ModelPipeline):
+class StainNet(ModelPipeline):
     """
     StainNet stain-normalization pipeline for WSI files.
 
@@ -64,6 +64,11 @@ class StainNetPipeline(ModelPipeline):
         self._validate_config()
 
         self.device = self._select_device(self.config.device)
+        self.grid_sampler = GridSampler(
+            patch_size=self.config.patch_size,
+            stride=self.config.stride,
+            read_level=self.config.read_level,
+        )
         self.model = self._load_model().to(self.device)
         self.model.eval()
 
@@ -75,30 +80,34 @@ class StainNetPipeline(ModelPipeline):
         del target_img_path  # StainNet inference uses a trained target domain.
 
         src_wsi_handle = open_wsi_handle(src_img_path)
-        refs_with_pos = self._make_full_grid_refs(src_wsi_handle)
-
         read_w, read_h = src_wsi_handle.level_dimensions[self.config.read_level]
-        output_hwc = np.zeros((read_h, read_w, 3), dtype=np.uint8)
+        level_downsample = float(
+            src_wsi_handle.level_downsamples[self.config.read_level]
+        )
+        output_path = self._build_output_path(src_img_path)
 
-        for start in range(0, len(refs_with_pos), self.config.batch_size):
-            batch_items = refs_with_pos[start:start + self.config.batch_size]
-            batch_refs = [item[0] for item in batch_items]
+        writer = RegularTiffWSIWriter(
+            output_path=output_path,
+            width=read_w,
+            height=read_h,
+            level_downsample=level_downsample,
+            channels=3,
+            overwrite=True,
+        )
+
+        refs = self.grid_sampler.sample(src_wsi_handle)
+
+        for start in range(0, len(refs), self.config.batch_size):
+            batch_refs = refs[start:start + self.config.batch_size]
             batch_patches = [load_patch(ref).img for ref in batch_refs]
-
             normalized_batch = self._normalize_batch(batch_patches)
 
-            for normalized_chw, (_, x, y) in zip(normalized_batch, batch_items):
-                patch_h = normalized_chw.shape[1]
-                patch_w = normalized_chw.shape[2]
-                output_hwc[y:y + patch_h, x:x + patch_w, :] = np.transpose(
-                    normalized_chw,
-                    (1, 2, 0),
-                )
+            for ref, normalized_chw in zip(batch_refs, normalized_batch):
+                writer.write_patch(ref, normalized_chw)
 
-        output_path = self._build_output_path(src_img_path)
-        Image.fromarray(output_hwc, mode="RGB").save(output_path, format="TIFF")
+        final_output_path = writer.finalize()
 
-        return PipelineResult(output_path=str(output_path))
+        return PipelineResult(output_path=str(final_output_path))
 
     def _validate_config(self) -> None:
         if self.config.patch_size <= 0:
@@ -181,51 +190,6 @@ class StainNetPipeline(ModelPipeline):
             key[len(prefix):] if key.startswith(prefix) else key: value
             for key, value in state_dict.items()
         }
-
-    def _make_full_grid_refs(
-        self,
-        wsi_handle: WSIHandle,
-    ) -> list[tuple[PatchRef, int, int]]:
-        level_count = len(wsi_handle.level_dimensions)
-        if not (0 <= self.config.read_level < level_count):
-            raise ValueError(
-                f"read_level {self.config.read_level} must be within [0, {level_count - 1}]"
-            )
-
-        read_w, read_h = wsi_handle.level_dimensions[self.config.read_level]
-        patch_w = min(self.config.patch_size, read_w)
-        patch_h = min(self.config.patch_size, read_h)
-
-        xs = self._grid_positions(read_w, patch_w, self.config.stride)
-        ys = self._grid_positions(read_h, patch_h, self.config.stride)
-
-        refs: list[tuple[PatchRef, int, int]] = []
-        for y in ys:
-            for x in xs:
-                ref = wsi_handle.make_ref(
-                    pos=(x, y),
-                    level=self.config.read_level,
-                    dim=(patch_w, patch_h),
-                )
-                refs.append((ref, x, y))
-
-        return refs
-
-    def _grid_positions(
-        self,
-        length: int,
-        patch_length: int,
-        stride: int,
-    ) -> list[int]:
-        max_start = length - patch_length
-        positions = list(range(0, max_start + 1, stride))
-
-        # Include the right/bottom edge even when stride does not land exactly
-        # on the final valid top-left coordinate.
-        if not positions or positions[-1] != max_start:
-            positions.append(max_start)
-
-        return positions
 
     def _normalize_batch(self, patches_chw: list[np.ndarray]) -> list[np.ndarray]:
         batch = np.stack(patches_chw, axis=0).astype(np.float32) / 255.0

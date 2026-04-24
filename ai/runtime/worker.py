@@ -9,6 +9,7 @@ from ai.metrics.psnr import PSNR
 from ai.runtime.task import Task, TaskResult, Metrics
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.reinhard import Reinhard
+from ai.pipelines import StainNet, StainNetConfig
 
 # model_id → pipeline 매핑 
 PIPELINE_MAP: dict[int, Callable[..., ModelPipeline]] = {
@@ -16,7 +17,7 @@ PIPELINE_MAP: dict[int, Callable[..., ModelPipeline]] = {
     # 2: Macenko(),  
     # 3: Vahadane(),  
     # 4: StainGAN(),  
-    # 5: StainNet(),  
+    5: StainNet(),  
     # 6: StainSWIN(), 
 }
 

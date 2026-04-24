@@ -1,0 +1,1 @@
+from ai.pipelines.stainnet import StainNet, StainNetConfig #makes these available directly from the package 'pipelines'

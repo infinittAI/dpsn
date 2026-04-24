@@ -1,0 +1,1 @@
+from ai.models.stainnet_model import StainNet #makes thoese available directly from the package 'models'
