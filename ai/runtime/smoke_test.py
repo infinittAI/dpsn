@@ -3,7 +3,7 @@ from pathlib import Path
 from ai.runtime.worker import Worker
 from ai.runtime.task import Task
 
-slide_path = Path("data/GTEX-1117F-0126.svs")
+slide_path = Path("data/patient_178/patient_178_node_0.tif")
 
 worker = Worker()
 result = worker.run(Task(slide_path, slide_path, 1), lambda x: x)

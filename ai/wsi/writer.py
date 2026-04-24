@@ -1,5 +1,6 @@
 import numpy as np
 from pathlib import Path
+from PIL import Image
 import zarr
 
 from ai.wsi.patch_ref import PatchRef
@@ -64,5 +65,15 @@ class ZarrWSIWriter:
         if write_w <= 0 or write_h <= 0:
             return
         
-        cropped = img[:, :write_h, :write_w]
+        cropped = (img[:, :write_h, :write_w]).astype(np.uint8)
         self.image[y1:y2, x1:x2, :] = cropped.transpose([1, 2, 0])
+    
+    def get_thumbnail(self, max_size: int = 1024):
+        arr = self.root["image"]
+        H, W, C = arr.shape
+
+        stride = max(1, int(max(H / max_size, W / max_size)))
+
+        thumb = arr[::stride, ::stride, :]
+
+        return Image.fromarray(thumb.astype("uint8"), mode="RGB")

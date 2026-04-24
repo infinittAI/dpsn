@@ -1,0 +1,11 @@
+{
+  "attributes": {
+    "width": 256,
+    "height": 256,
+    "channels": 3,
+    "tile_size": 256,
+    "dtype": "<class 'numpy.uint8'>"
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

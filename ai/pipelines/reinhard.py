@@ -21,7 +21,7 @@ class Reinhard(ModelPipeline):
     def __init__(self):
         super().__init__()
         self.patch_sampler = PatchSampler()
-        self.grid_sampler = GridSampler()
+        self.grid_sampler = GridSampler(read_level=3)
 
     def run(
         self,
@@ -50,36 +50,28 @@ class Reinhard(ModelPipeline):
         batch_size = 64
         writer = ZarrWSIWriter(
             "out_img", 
-            src_ref.width, 
-            src_ref.height,
+            src_wsi_handle.dim[1], 
+            src_wsi_handle.dim[0],
             tile_size = src_refs[0].read_size[0]
         )
-        times = defaultdict(float)
 
-        for idx in tqdm(range(0, len(src_refs)//100, batch_size)):
+        for idx in tqdm(range(0, len(src_refs), batch_size)):
             batch_ref = src_refs[idx:idx + batch_size]
-            t0 = time.perf_counter()
             patches = np.stack([load_patch(ref).img for ref in batch_ref], axis=0)
-            times["load"] += time.perf_counter() - t0
             
-            t0 = time.perf_counter()
             new_patches = self.transform_image(patches, target_means, target_stds, src_means, src_stds)
-            times["transform"] += time.perf_counter() - t0
             
-            t0 = time.perf_counter()
             for i, ref in enumerate(batch_ref):
                 for key, metric in metrics.items():
                     metric.evaluate(patches[i], new_patches[i])
-            times["metric"] += time.perf_counter() - t0
 
-            t0 = time.perf_counter()
             for i, ref in enumerate(batch_ref):
                 writer.write_patch(ref, new_patches[i])
-            times["write"] += time.perf_counter() - t0
                 
-        print(dict(times))
+        image = writer.get_thumbnail()
+        image.save("out_image.png")
 
-        return PipelineResult(output_path=str(target_img_path))
+        return PipelineResult(output_path="out_image.png")
         
     
     def get_reinhard_stats(self, image: np.ndarray):
@@ -89,12 +81,10 @@ class Reinhard(ModelPipeline):
             means: [L_mean, a_mean, b_mean]
             stds:  [L_std,  a_std,  b_std]
         """
-        if image.dtype != np.float32 and image.dtype != np.float64:
-            image = image.astype(np.float32) / 255.0
 
         image = image.transpose([1, 2, 0]) # [H, W, C]
 
-        lab = color.rgb2lab(image)  # L: [0,100], a/b: roughly [-128,127]
+        lab = color.rgb2lab(image / 255.0)  # L: [0,100], a/b: roughly [-128,127]
 
         means = lab.reshape(-1, 3).mean(axis=0)
         stds = lab.reshape(-1, 3).std(axis=0)
@@ -111,10 +101,10 @@ class Reinhard(ModelPipeline):
     ) -> np.ndarray:
         image = image.transpose([0, 2, 3, 1])
 
-        lab = color.rgb2lab(image)
+        lab = color.rgb2lab(image / 255.0)
         lab = (lab - src_means)/src_stds * target_stds + target_means
         
-        image = color.lab2rgb(image)
+        image = color.lab2rgb(lab) * 255.0
         image = image.transpose([0, 3, 1, 2])
 
         return image
