@@ -45,8 +45,8 @@ class ZarrWSIWriter:
 
 
     def write_patch(self, ref: PatchRef, img: np.ndarray) -> None:
-        x1 = int(ref.x)
-        y1 = int(ref.y)
+        x1 = int(ref.x / ref.downsample)
+        y1 = int(ref.y / ref.downsample)
 
         if x1 >= self.width or y1 >= self.height:
             return

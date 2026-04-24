@@ -50,8 +50,8 @@ class Reinhard(ModelPipeline):
         batch_size = 64
         writer = ZarrWSIWriter(
             "out_img", 
-            src_wsi_handle.dim[1], 
-            src_wsi_handle.dim[0],
+            src_wsi_handle.level_dimensions[3][0], 
+            src_wsi_handle.level_dimensions[3][1],
             tile_size = src_refs[0].read_size[0]
         )
 

@@ -56,6 +56,7 @@ class WSIHandle:
             width=int(dim[0]),
             height=int(dim[1]),
             read_level=int(level),
+            downsample=int(self.level_downsamples[level]),
             mpp_x=float(self.mpp[0]),
             mpp_y=float(self.mpp[1]),
         )
