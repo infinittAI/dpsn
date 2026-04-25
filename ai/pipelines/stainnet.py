@@ -7,24 +7,19 @@ from typing import Any
 import numpy as np
 import torch
 
-from ai.models.stainnet_model import StainNet
+from dpsn.ai.models.stainnet.stainnet_model import StainNet as StainNetModel
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler
 from ai.wsi.handle import open_wsi_handle
 from ai.wsi.loader import load_patch
-from ai.wsi.writer import RegularTiffWSIWriter
+from ai.wsi.writer import TiffWSIWriter
 
 
 @dataclass(slots=True)
-class StainNetConfig:
+class StainNetInferenceConfig:
     """
-    Runtime configuration for StainNet WSI inference.
-
-    Defaults follow the requested first implementation:
-    - full-grid inference
-    - regular TIFF output
-    - patch_size=512, stride=512, read_level=0, batch_size=8
+    Configuration for patch-wise WSI inference with a trained StainNet model.
     """
 
     checkpoint_path: Path | None = None
@@ -41,26 +36,24 @@ class StainNetConfig:
     stride: int = 512
     read_level: int = 0
     batch_size: int = 8
+    tile_size: int = 512
+    pyramid_levels: int = 2
     device: str = "auto"
+    compression: str | None = None
+    keep_store: bool = False
 
 
-class StainNet(ModelPipeline):
+class StainNetPipeline(ModelPipeline):
     """
-    StainNet stain-normalization pipeline for WSI files.
+    WSI inference pipeline for a trained StainNet model.
 
-    This pipeline follows the original StainNet inference convention:
-    - input tensor is RGB in [0, 1]
-    - normalize to [-1, 1] before the model
-    - convert model output back to [0, 1]
-    - clamp and save as uint8 RGB
-
-    StainNet is a learned fixed-domain mapping, so target_img_path is ignored.
-    The checkpoint itself defines the target stain style.
+    This path is for inference only. Training uses paired aligned image/patch
+    folders and lives in separate dataset/training modules.
     """
 
-    def __init__(self, config: StainNetConfig | None = None) -> None:
+    def __init__(self, config: StainNetInferenceConfig | None = None) -> None:
         super().__init__()
-        self.config = config or StainNetConfig()
+        self.config = config or StainNetInferenceConfig()
         self._validate_config()
 
         self.device = self._select_device(self.config.device)
@@ -77,36 +70,46 @@ class StainNet(ModelPipeline):
         src_img_path: Path,
         target_img_path: Path | None = None,
     ) -> PipelineResult:
-        del target_img_path  # StainNet inference uses a trained target domain.
+        del target_img_path
 
         src_wsi_handle = open_wsi_handle(src_img_path)
+        level_count = len(src_wsi_handle.level_dimensions)
+        if not (0 <= self.config.read_level < level_count):
+            raise ValueError(
+                f"read_level {self.config.read_level} must be within [0, {level_count - 1}]"
+            )
+
         read_w, read_h = src_wsi_handle.level_dimensions[self.config.read_level]
         level_downsample = float(
             src_wsi_handle.level_downsamples[self.config.read_level]
         )
+        refs = self.grid_sampler.sample(src_wsi_handle)
         output_path = self._build_output_path(src_img_path)
 
-        writer = RegularTiffWSIWriter(
+        writer = TiffWSIWriter(
             output_path=output_path,
             width=read_w,
             height=read_h,
             level_downsample=level_downsample,
             channels=3,
+            tile_size=self.config.tile_size,
             overwrite=True,
+            pyramid_levels=self.config.pyramid_levels,
+            compression=self.config.compression,
+            mpp_x=src_wsi_handle.mpp[0] if src_wsi_handle.mpp[0] > 0 else None,
+            mpp_y=src_wsi_handle.mpp[1] if src_wsi_handle.mpp[1] > 0 else None,
+            keep_store=self.config.keep_store,
         )
-
-        refs = self.grid_sampler.sample(src_wsi_handle)
 
         for start in range(0, len(refs), self.config.batch_size):
             batch_refs = refs[start:start + self.config.batch_size]
             batch_patches = [load_patch(ref).img for ref in batch_refs]
             normalized_batch = self._normalize_batch(batch_patches)
 
-            for ref, normalized_chw in zip(batch_refs, normalized_batch):
-                writer.write_patch(ref, normalized_chw)
+            for ref, normalized_patch in zip(batch_refs, normalized_batch):
+                writer.write_patch(ref, normalized_patch)
 
         final_output_path = writer.finalize()
-
         return PipelineResult(output_path=str(final_output_path))
 
     def _validate_config(self) -> None:
@@ -118,9 +121,13 @@ class StainNet(ModelPipeline):
             raise ValueError("read_level must be >= 0")
         if self.config.batch_size <= 0:
             raise ValueError("batch_size must be > 0")
+        if self.config.tile_size <= 0:
+            raise ValueError("tile_size must be > 0")
+        if self.config.pyramid_levels < 0:
+            raise ValueError("pyramid_levels must be >= 0")
 
-    def _load_model(self) -> StainNet:
-        model = StainNet(
+    def _load_model(self) -> StainNetModel:
+        model = StainNetModel(
             input_nc=self.config.input_nc,
             output_nc=self.config.output_nc,
             n_layer=self.config.n_layer,
@@ -129,10 +136,7 @@ class StainNet(ModelPipeline):
         )
 
         checkpoint_path = self._resolve_checkpoint_path()
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location=self.device,
-        )
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
         state_dict = self._extract_state_dict(checkpoint)
         state_dict = self._strip_module_prefix(state_dict)
         model.load_state_dict(state_dict)
@@ -163,7 +167,6 @@ class StainNet(ModelPipeline):
                 "Multiple checkpoint files found. Pass checkpoint_path explicitly: "
                 f"{names}"
             )
-
         return candidates[0]
 
     def _extract_state_dict(self, checkpoint: Any) -> dict[str, torch.Tensor]:
@@ -223,3 +226,8 @@ class StainNet(ModelPipeline):
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(src_img_path).stem
         return self.config.output_dir / f"{stem}_stainnet.tiff"
+
+
+# Backward-compatible alias while the rest of the project catches up.
+StainNet = StainNetPipeline
+StainNetConfig = StainNetInferenceConfig
