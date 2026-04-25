@@ -7,7 +7,7 @@ import tempfile
 import tifffile
 import torch
 
-from dpsn.ai.models.stainnet.stainnet_model import StainNet
+from ai.models.stainnet.stainnet_model import StainNet
 from ai.pipelines.stainnet import StainNetInferenceConfig, StainNetPipeline
 from ai.wsi.handle import open_wsi_handle
 

@@ -24,10 +24,12 @@ class PairedAlignedImageDataset(Dataset):
         source_dir: str | Path,
         target_dir: str | Path,
         image_size: int = 256,
+        recursive: bool = True, #whether the dataset loader searches only the top-level folder or also all nested subfolders for images
     ) -> None:
         self.source_dir = Path(source_dir)
         self.target_dir = Path(target_dir)
         self.image_size = int(image_size)
+        self.recursive = bool(recursive)
 
         if not self.source_dir.is_dir():
             raise FileNotFoundError(f"Source directory not found: {self.source_dir}")
@@ -39,8 +41,8 @@ class PairedAlignedImageDataset(Dataset):
         source_files = self._list_images(self.source_dir)
         target_files = self._list_images(self.target_dir)
 
-        source_map = {path.name: path for path in source_files}
-        target_map = {path.name: path for path in target_files}
+        source_map = self._build_file_map(source_files)
+        target_map = self._build_file_map(target_files)
 
         missing_in_target = sorted(set(source_map) - set(target_map))
         missing_in_source = sorted(set(target_map) - set(source_map))
@@ -73,15 +75,36 @@ class PairedAlignedImageDataset(Dataset):
         target = self._load_image(self.target_map[filename])
         return source, target, filename
     
-    # looks inside a folder and returns a sorted list of image file paths
+        # looks inside a folder and returns a sorted list of image file paths
     def _list_images(self, directory: Path) -> list[Path]:
+        pattern = "**/*" if self.recursive else "*"
         return sorted(
             [
                 path
-                for path in directory.iterdir()
-                if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS #.lower() treats PNG, png Png as the same
+                for path in directory.glob(pattern)
+                if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
             ]
         )
+    
+    # Building an image's filename → file path dictionary
+    # and checking that your paired dataset is safe to match by filename
+    def _build_file_map(self, files: list[Path]) -> dict[str, Path]:
+        file_map: dict[str, Path] = {}
+        duplicates: list[str] = []
+        for path in files:
+            key = path.name # path.name is only the file's name, not path
+            if key in file_map: # checking if there are same IDs across folders
+                duplicates.append(key)
+            file_map[key] = path # if there is a duplicate, overwrite older path with new one
+
+        if duplicates: #if duplicates exist, raise error
+            dup_preview = ", ".join(sorted(set(duplicates))[:10])
+            raise ValueError(
+                "Duplicate filenames are not supported for paired aligned training. "
+                f"Found duplicates such as: {dup_preview}"
+            )
+
+        return file_map
     
     # loads one image file from disk and converts it into the exact numeric format the model wants
     def _load_image(self, path: Path) -> np.ndarray:
