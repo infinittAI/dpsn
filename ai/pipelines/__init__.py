@@ -1,1 +1,6 @@
-from ai.pipelines.stainnet import StainNet, StainNetConfig #makes these available directly from the package 'pipelines'
+from ai.pipelines.stainnet import (
+    StainNet,
+    StainNetConfig,
+    StainNetInferenceConfig,
+    StainNetPipeline,
+)
