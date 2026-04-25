@@ -10,7 +10,7 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
-from ai.datasets.paired_aligned_dataset import PairedAlignedImageDataset
+from dpsn.ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
 from dpsn.ai.models.stainnet.stainnet_model import StainNet
 
 
@@ -47,7 +47,8 @@ def create_model(config: StainNetTrainingConfig) -> StainNet:
         kernel_size=config.kernel_size,
     )
 
-
+# this function does two things: 1) create the dataset object 2) wrap that dataset in a PyTorch DataLoader
+# it turns source, target folder into smth you can iterate in training
 def create_dataloader(
     source_dir: Path,
     target_dir: Path,
@@ -64,8 +65,8 @@ def create_dataloader(
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
+        shuffle=shuffle, # Whether to shuffle the dataset order
+        num_workers=num_workers, # How many worker processes PyTorch should use for loading data
     )
 
 
@@ -162,7 +163,7 @@ def train(config: StainNetTrainingConfig) -> Path:
 
     model = create_model(config).to(device)
     optimizer = SGD(model.parameters(), lr=config.lr)
-    scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs)
+    scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs) # A scheduler gradually adjusts the learning rate 
     loss_fn = nn.L1Loss()
 
     latest_checkpoint_path = (

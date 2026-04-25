@@ -19,13 +19,13 @@ class StainNet(nn.Module):
 
     def __init__(
         self,
-        input_nc: int = 3,
-        output_nc: int = 3,
-        n_layer: int = 3,
-        n_channel: int = 32,
-        kernel_size: int = 1,
+        input_nc: int = 3,  # number of input channels
+        output_nc: int = 3, # number of output channels
+        n_layer: int = 3,   # total number of convolution layers
+        n_channel: int = 32,# number of hidden feature channels used inside the network
+        kernel_size: int = 1, # convolution kernel size
     ) -> None:
-        super().__init__()
+        super().__init__() # call parent constructor
 
         if input_nc <= 0:
             raise ValueError(f"input_nc must be > 0, got {input_nc}")
@@ -40,9 +40,9 @@ class StainNet(nn.Module):
 
         # Same padding behavior as the original implementation:
         # padding=kernel_size // 2 preserves H/W for odd kernel sizes.
-        padding = kernel_size // 2
+        padding = kernel_size // 2 # how much zero-padding to add around the image when doing convolution
 
-        layers: list[nn.Module] = [
+        layers: list[nn.Module] = [ # first layer: Conv2d
             nn.Conv2d(
                 input_nc,
                 n_channel,
@@ -50,11 +50,11 @@ class StainNet(nn.Module):
                 padding=padding,
                 bias=True,
             ),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=True), # then ReLU
         ]
 
         # Original StainNet adds hidden Conv + ReLU blocks for n_layer - 2.
-        for _ in range(n_layer - 2):
+        for _ in range(n_layer - 2): # add hidden conv blocks
             layers.extend(
                 [
                     nn.Conv2d(
@@ -68,7 +68,7 @@ class StainNet(nn.Module):
                 ]
             )
 
-        layers.append(
+        layers.append( # Final output layer
             nn.Conv2d(
                 n_channel,
                 output_nc,
@@ -78,7 +78,7 @@ class StainNet(nn.Module):
             )
         )
 
-        self.rgb_trans = nn.Sequential(*layers)
+        self.rgb_trans = nn.Sequential(*layers) # wrap everything using nn.Sequential
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
