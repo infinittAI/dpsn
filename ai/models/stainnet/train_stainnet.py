@@ -10,6 +10,12 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
+try:
+    from tqdm.auto import tqdm
+except ModuleNotFoundError:
+    def tqdm(iterable, **_: object):
+        return iterable
+
 from ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
 from ai.models.stainnet.stainnet_model import StainNet
 
@@ -89,12 +95,21 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module,
     device: torch.device,
+    epoch: int,
+    total_epochs: int,
 ) -> float:
     model.train()
     total_loss = 0.0
     total_batches = 0
 
-    for source, target, _ in dataloader:
+    progress = tqdm(
+        dataloader,
+        desc=f"StainNet train {epoch}/{total_epochs}",
+        unit="batch",
+        leave=False,
+    )
+
+    for source, target, _ in progress:
         source = source.to(device=device, dtype=torch.float32)
         target = target.to(device=device, dtype=torch.float32)
 
@@ -106,6 +121,11 @@ def train_one_epoch(
 
         total_loss += float(loss.item())
         total_batches += 1
+        if hasattr(progress, "set_postfix"):
+            progress.set_postfix(
+                l1=f"{loss.item():.4f}",
+                avg=f"{total_loss / total_batches:.4f}",
+            )
 
     return total_loss / max(total_batches, 1)
 
@@ -115,19 +135,32 @@ def evaluate(
     dataloader: DataLoader,
     loss_fn: nn.Module,
     device: torch.device,
+    epoch: int,
+    total_epochs: int,
 ) -> float:
     model.eval()
     total_loss = 0.0
     total_batches = 0
 
     with torch.inference_mode():
-        for source, target, _ in dataloader:
+        progress = tqdm(
+            dataloader,
+            desc=f"StainNet val {epoch}/{total_epochs}",
+            unit="batch",
+            leave=False,
+        )
+        for source, target, _ in progress:
             source = source.to(device=device, dtype=torch.float32)
             target = target.to(device=device, dtype=torch.float32)
             output = model(source)
             loss = loss_fn(output, target)
             total_loss += float(loss.item())
             total_batches += 1
+            if hasattr(progress, "set_postfix"):
+                progress.set_postfix(
+                    l1=f"{loss.item():.4f}",
+                    avg=f"{total_loss / total_batches:.4f}",
+                )
 
     return total_loss / max(total_batches, 1)
 
@@ -196,6 +229,8 @@ def train(config: StainNetTrainingConfig) -> Path:
             optimizer=optimizer,
             loss_fn=loss_fn,
             device=device,
+            epoch=epoch,
+            total_epochs=config.epochs,
         )
 
         if val_loader is not None:
@@ -204,6 +239,8 @@ def train(config: StainNetTrainingConfig) -> Path:
                 dataloader=val_loader,
                 loss_fn=loss_fn,
                 device=device,
+                epoch=epoch,
+                total_epochs=config.epochs,
             )
             print(
                 f"epoch {epoch}/{config.epochs} - train_l1={train_loss:.6f} val_l1={val_loss:.6f}"
