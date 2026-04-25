@@ -15,7 +15,7 @@ from ai.wsi.handle import open_wsi_handle
 from ai.wsi.loader import load_patch
 from ai.wsi.writer import TiffWSIWriter
 
-
+# class that stores all settings needed for StainNet WSI inference
 @dataclass(slots=True)
 class StainNetInferenceConfig:
     """
@@ -36,13 +36,13 @@ class StainNetInferenceConfig:
     stride: int = 512
     read_level: int = 0
     batch_size: int = 8
-    tile_size: int = 512
+    tile_size: int = 512 # small rectangular chunks called that a WSI is divided and saved in
     pyramid_levels: int = 2
     device: str = "auto"
-    compression: str | None = None
-    keep_store: bool = False
+    compression: str | None = None # whether to compress the output TIFF, and by which method
+    keep_store: bool = False # whether to keep the writer’s intermediate storage after output is finalized
 
-
+# Class that performs the whole inference procedure on a WSI
 class StainNetPipeline(ModelPipeline):
     """
     WSI inference pipeline for a trained StainNet model.
