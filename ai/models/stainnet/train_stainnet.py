@@ -41,6 +41,8 @@ class StainNetTrainingConfig:
     device: str = "auto"
     experiment_name: str = "stainnet"
     recursive: bool = True # whether the dataset loader searches only the top-level folder or also all nested subfolders for images
+    source_prefix: str = "A"
+    target_prefix: str = "H"
 
 
 def create_model(config: StainNetTrainingConfig) -> StainNet:
@@ -62,12 +64,16 @@ def create_dataloader(
     num_workers: int,
     shuffle: bool,
     recursive: bool,
+    source_prefix: str,
+    target_prefix: str,
 ) -> DataLoader:
     dataset = PairedAlignedImageDataset(
         source_dir=source_dir,
         target_dir=target_dir,
         image_size=image_size,
         recursive=recursive,
+        source_prefix=source_prefix,
+        target_prefix=target_prefix,
     )
     return DataLoader(
         dataset,
@@ -156,6 +162,8 @@ def train(config: StainNetTrainingConfig) -> Path:
         num_workers=config.num_workers,
         shuffle=True,
         recursive=config.recursive,
+        source_prefix=config.source_prefix,
+        target_prefix=config.target_prefix,
     )
 
     val_loader = None
@@ -168,6 +176,8 @@ def train(config: StainNetTrainingConfig) -> Path:
             num_workers=config.num_workers,
             shuffle=False,
             recursive=config.recursive,
+            source_prefix=config.source_prefix,
+            target_prefix=config.target_prefix,
         )
 
     model = create_model(config).to(device)
@@ -243,6 +253,8 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--n-layer", type=int, default=3)
     parser.add_argument("--kernel-size", type=int, default=1)
     parser.add_argument("--recursive", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--source-prefix", type=str, default="A")
+    parser.add_argument("--target-prefix", type=str, default="H")
     return parser
 
 
@@ -267,6 +279,8 @@ def main() -> None:
         n_layer=args.n_layer,
         kernel_size=args.kernel_size,
         recursive=args.recursive,
+        source_prefix=args.source_prefix,
+        target_prefix=args.target_prefix,
     )
     checkpoint_path = train(config)
     print(f"Saved latest checkpoint to {checkpoint_path}")

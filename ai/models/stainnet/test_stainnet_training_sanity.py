@@ -31,8 +31,14 @@ def build_synthetic_dataset(root: Path, count: int = 4, image_size: int = 256) -
         source = base
         target = np.flip(base, axis=1).copy()
 
-        Image.fromarray(source, mode="RGB").save(source_dir / f"sample_{idx:03d}.png")
-        Image.fromarray(target, mode="RGB").save(target_dir / f"sample_{idx:03d}.png")
+        suffix = f"sample_{idx:03d}"
+        Image.fromarray(source, mode="RGB").save(source_dir / f"A{suffix}.png")
+        Image.fromarray(target, mode="RGB").save(target_dir / f"H{suffix}.png")
+
+    # These are intentionally ignored because they do not match the training
+    # scanner prefixes used for MITOS pairing.
+    Image.fromarray(source, mode="RGB").save(source_dir / "annotation_overlay.png")
+    Image.fromarray(target, mode="RGB").save(target_dir / "thumb_preview.png")
 
     return source_dir, target_dir
 
