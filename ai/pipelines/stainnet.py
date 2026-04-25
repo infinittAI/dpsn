@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from dpsn.ai.models.stainnet.stainnet_model import StainNet as StainNetModel
+from ai.models.stainnet.stainnet_model import StainNet as StainNetModel
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler

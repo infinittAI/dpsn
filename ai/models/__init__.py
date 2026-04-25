@@ -1,1 +1,1 @@
-from dpsn.ai.models.stainnet.stainnet_model import StainNet #makes thoese available directly from the package 'models'
+from ai.models.stainnet.stainnet_model import StainNet

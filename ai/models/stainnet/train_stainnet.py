@@ -10,17 +10,21 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
-from dpsn.ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
-from dpsn.ai.models.stainnet.stainnet_model import StainNet
+from ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
+from ai.models.stainnet.stainnet_model import StainNet
 
-
-DEFAULT_DATASET_ROOT = Path("/home/snu_2026/dpsn/datasets")
+DEFAULT_APERIO_DIR = Path(
+    "/mnt/Disk1/dpsn_datasets/camelyon16/mitos_atypia_2014_training_aperio"
+)
+DEFAULT_HAMAMATSU_DIR = Path(
+    "/mnt/Disk1/dpsn_datasets/camelyon16/mitos_atypia_2014_training_hamamatsu"
+)
 
 
 @dataclass(slots=True)
 class StainNetTrainingConfig:
-    train_source_dir: Path = DEFAULT_DATASET_ROOT / "train" / "source"
-    train_target_dir: Path = DEFAULT_DATASET_ROOT / "train" / "target"
+    train_source_dir: Path = DEFAULT_APERIO_DIR
+    train_target_dir: Path = DEFAULT_HAMAMATSU_DIR
     val_source_dir: Path | None = None
     val_target_dir: Path | None = None
     checkpoints_dir: Path = Path("checkpoints")
@@ -36,6 +40,7 @@ class StainNetTrainingConfig:
     epochs: int = 10
     device: str = "auto"
     experiment_name: str = "stainnet"
+    recursive: bool = True # whether the dataset loader searches only the top-level folder or also all nested subfolders for images
 
 
 def create_model(config: StainNetTrainingConfig) -> StainNet:
@@ -56,11 +61,13 @@ def create_dataloader(
     batch_size: int,
     num_workers: int,
     shuffle: bool,
+    recursive: bool,
 ) -> DataLoader:
     dataset = PairedAlignedImageDataset(
         source_dir=source_dir,
         target_dir=target_dir,
         image_size=image_size,
+        recursive=recursive,
     )
     return DataLoader(
         dataset,
@@ -148,6 +155,7 @@ def train(config: StainNetTrainingConfig) -> Path:
         batch_size=config.batch_size,
         num_workers=config.num_workers,
         shuffle=True,
+        recursive=config.recursive,
     )
 
     val_loader = None
@@ -159,6 +167,7 @@ def train(config: StainNetTrainingConfig) -> Path:
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             shuffle=False,
+            recursive=config.recursive,
         )
 
     model = create_model(config).to(device)
@@ -216,16 +225,16 @@ def select_device(device: str) -> torch.device:
 
 def build_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train StainNet on paired aligned images.")
-    parser.add_argument("--train-source-dir", type=Path, default=DEFAULT_DATASET_ROOT / "train" / "source")
-    parser.add_argument("--train-target-dir", type=Path, default=DEFAULT_DATASET_ROOT / "train" / "target")
-    parser.add_argument("--val-source-dir", type=Path, default=None)
-    parser.add_argument("--val-target-dir", type=Path, default=None)
+    parser.add_argument("--train-source-dir", "--source-root-train", dest="train_source_dir", type=Path, default=DEFAULT_APERIO_DIR)
+    parser.add_argument("--train-target-dir", "--gt-root-train", dest="train_target_dir", type=Path, default=DEFAULT_HAMAMATSU_DIR)
+    parser.add_argument("--val-source-dir", "--source-root-test", dest="val_source_dir", type=Path, default=None)
+    parser.add_argument("--val-target-dir", "--gt-root-test", dest="val_target_dir", type=Path, default=None)
     parser.add_argument("--checkpoints-dir", type=Path, default=Path("checkpoints"))
-    parser.add_argument("--image-size", type=int, default=256)
-    parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument("--image-size", "--fineSize", dest="image_size", type=int, default=256)
+    parser.add_argument("--batch-size", "--batchSize", dest="batch_size", type=int, default=8)
+    parser.add_argument("--num-workers", "--nThreads", dest="num_workers", type=int, default=0)
     parser.add_argument("--lr", type=float, default=0.01)
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochs", "--epoch", dest="epochs", type=int, default=10)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--experiment-name", type=str, default="stainnet")
     parser.add_argument("--input-nc", type=int, default=3)
@@ -233,6 +242,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--channels", type=int, default=32)
     parser.add_argument("--n-layer", type=int, default=3)
     parser.add_argument("--kernel-size", type=int, default=1)
+    parser.add_argument("--recursive", action=argparse.BooleanOptionalAction, default=True)
     return parser
 
 
@@ -256,9 +266,10 @@ def main() -> None:
         channels=args.channels,
         n_layer=args.n_layer,
         kernel_size=args.kernel_size,
+        recursive=args.recursive,
     )
     checkpoint_path = train(config)
-    print(f"Saved checkpoint to: {checkpoint_path}")
+    print(f"Saved latest checkpoint to {checkpoint_path}")
 
 
 if __name__ == "__main__":

@@ -10,8 +10,12 @@ import torch
 from torch import nn
 from torch.optim import SGD
 
-from dpsn.ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
-from dpsn.ai.models.stainnet.train_stainnet import create_model, select_device, StainNetTrainingConfig
+from ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
+from ai.models.stainnet.train_stainnet import (
+    StainNetTrainingConfig,
+    create_model,
+    select_device,
+)
 
 
 def build_synthetic_dataset(root: Path, count: int = 4, image_size: int = 256) -> tuple[Path, Path]:
