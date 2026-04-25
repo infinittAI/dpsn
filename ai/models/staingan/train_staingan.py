@@ -10,6 +10,12 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
+try:
+    from tqdm.auto import tqdm
+except ModuleNotFoundError:
+    def tqdm(iterable, **_: object):
+        return iterable
+
 from ai.models.staingan.staingan_model import (
     GANLoss,
     ImagePool,
@@ -211,7 +217,14 @@ def train(config: StainGANTrainingConfig) -> Path:
             "batches": 0,
         }
 
-        for real_a, real_b, _, _ in dataloader: # For each batch, what the dataloader returns (_: two filename outputs)
+        progress = tqdm(
+            dataloader,
+            desc=f"StainGAN train {epoch}/{config.total_epochs}",
+            unit="batch",
+            leave=False,
+        )
+
+        for real_a, real_b, _, _ in progress: # For each batch, what the dataloader returns (_: two filename outputs)
             real_a = real_a.to(device=device, dtype=torch.float32) # move images to device
             real_b = real_b.to(device=device, dtype=torch.float32)
 
@@ -281,6 +294,12 @@ def train(config: StainGANTrainingConfig) -> Path:
             running["cycle"] += float((loss_cycle_a + loss_cycle_b).item())
             running["identity"] += float((loss_idt_a + loss_idt_b).item())
             running["batches"] += 1
+            if hasattr(progress, "set_postfix"):
+                progress.set_postfix(
+                    g=f"{loss_g.item():.4f}",
+                    d_a=f"{loss_d_a.item():.4f}",
+                    d_b=f"{loss_d_b.item():.4f}",
+                )
 
         scheduler_g.step()
         scheduler_d.step()
