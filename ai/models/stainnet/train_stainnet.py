@@ -14,10 +14,10 @@ from ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
 from ai.models.stainnet.stainnet_model import StainNet
 
 DEFAULT_APERIO_DIR = Path(
-    "/mnt/Disk1/dpsn_datasets/camelyon16/mitos_atypia_2014_training_aperio"
+    "/mnt/Disk1/dpsn_datasets/mitos_atypia_2014_training_aperio"
 )
 DEFAULT_HAMAMATSU_DIR = Path(
-    "/mnt/Disk1/dpsn_datasets/camelyon16/mitos_atypia_2014_training_hamamatsu"
+    "/mnt/Disk1/dpsn_datasets/mitos_atypia_2014_training_hamamatsu"
 )
 
 

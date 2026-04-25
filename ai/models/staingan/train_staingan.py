@@ -10,7 +10,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
-from dpsn.ai.models.staingan.staingan_model import (
+from ai.models.staingan.staingan_model import (
     GANLoss,
     ImagePool,
     NLayerDiscriminator,
@@ -20,10 +20,10 @@ from ai.models.staingan.unpaired_domain_dataset import UnpairedDomainImageDatase
 
 
 DEFAULT_APERIO_DIR = Path(
-    "/mnt/Disk1/dpsn_datasets/camelyon16/mitos_atypia_2014_training_aperio"
+    "/mnt/Disk1/dpsn_datasets/mitos_atypia_2014_training_aperio"
 )
 DEFAULT_HAMAMATSU_DIR = Path(
-    "/mnt/Disk1/dpsn_datasets/camelyon16/mitos_atypia_2014_training_hamamatsu"
+    "/mnt/Disk1/dpsn_datasets/mitos_atypia_2014_training_hamamatsu"
 )
 
 
