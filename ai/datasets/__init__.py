@@ -1,1 +1,1 @@
-from ai.datasets.paired_aligned_dataset import PairedAlignedImageDataset
+from dpsn.ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset

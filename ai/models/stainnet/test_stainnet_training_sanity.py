@@ -10,7 +10,7 @@ import torch
 from torch import nn
 from torch.optim import SGD
 
-from ai.datasets.paired_aligned_dataset import PairedAlignedImageDataset
+from dpsn.ai.models.stainnet.paired_aligned_dataset import PairedAlignedImageDataset
 from dpsn.ai.models.stainnet.train_stainnet import create_model, select_device, StainNetTrainingConfig
 
 
