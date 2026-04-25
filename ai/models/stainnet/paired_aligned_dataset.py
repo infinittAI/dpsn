@@ -67,25 +67,27 @@ class PairedAlignedImageDataset(Dataset):
     def __len__(self) -> int:
         return len(self.filenames)
 
-    def __getitem__(self, index: int) -> tuple[np.ndarray, np.ndarray, str]:
+    def __getitem__(self, index: int) -> tuple[np.ndarray, np.ndarray, str]: # get the source and target file of corresponding index
         filename = self.filenames[index]
         source = self._load_image(self.source_map[filename])
         target = self._load_image(self.target_map[filename])
         return source, target, filename
-
+    
+    # looks inside a folder and returns a sorted list of image file paths
     def _list_images(self, directory: Path) -> list[Path]:
         return sorted(
             [
                 path
                 for path in directory.iterdir()
-                if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+                if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS #.lower() treats PNG, png Png as the same
             ]
         )
-
+    
+    # loads one image file from disk and converts it into the exact numeric format the model wants
     def _load_image(self, path: Path) -> np.ndarray:
-        image = Image.open(path).convert("RGB")
-        image = image.resize((self.image_size, self.image_size), Image.BILINEAR)
-        image_np = np.asarray(image, dtype=np.float32) / 255.0
-        image_np = np.transpose(image_np, (2, 0, 1))
-        image_np = (image_np - 0.5) * 2.0
-        return image_np.astype(np.float32)
+        image = Image.open(path).convert("RGB") # open and force into RGB format
+        image = image.resize((self.image_size, self.image_size), Image.BILINEAR) #resizes the image to a fixed square size(256 x 256)
+        image_np = np.asarray(image, dtype=np.float32) / 255.0 # converts the PIL image into a NumPy array (dividing by 255 converts them to values 0-1)
+        image_np = np.transpose(image_np, (2, 0, 1)) # Change from HWC to CHW
+        image_np = (image_np - 0.5) * 2.0 # Normalize from [0,1] to [-1,1], because that's what stainnet expects
+        return image_np.astype(np.float32) # return processed image
