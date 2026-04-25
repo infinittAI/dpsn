@@ -25,11 +25,15 @@ class PairedAlignedImageDataset(Dataset):
         target_dir: str | Path,
         image_size: int = 256,
         recursive: bool = True, #whether the dataset loader searches only the top-level folder or also all nested subfolders for images
+        source_prefix: str = "A",
+        target_prefix: str = "H",
     ) -> None:
         self.source_dir = Path(source_dir)
         self.target_dir = Path(target_dir)
         self.image_size = int(image_size)
         self.recursive = bool(recursive)
+        self.source_prefix = str(source_prefix)
+        self.target_prefix = str(target_prefix)
 
         if not self.source_dir.is_dir():
             raise FileNotFoundError(f"Source directory not found: {self.source_dir}")
@@ -37,12 +41,26 @@ class PairedAlignedImageDataset(Dataset):
             raise FileNotFoundError(f"Target directory not found: {self.target_dir}")
         if self.image_size <= 0:
             raise ValueError(f"image_size must be > 0, got {self.image_size}")
+        if len(self.source_prefix) != 1:
+            raise ValueError(
+                f"source_prefix must be a single character, got {self.source_prefix!r}"
+            )
+        if len(self.target_prefix) != 1:
+            raise ValueError(
+                f"target_prefix must be a single character, got {self.target_prefix!r}"
+            )
 
         source_files = self._list_images(self.source_dir)
         target_files = self._list_images(self.target_dir)
 
-        source_map = self._build_file_map(source_files)
-        target_map = self._build_file_map(target_files)
+        source_map = self._build_file_map(
+            source_files,
+            expected_prefix=self.source_prefix,
+        )
+        target_map = self._build_file_map(
+            target_files,
+            expected_prefix=self.target_prefix,
+        )
 
         missing_in_target = sorted(set(source_map) - set(target_map))
         missing_in_source = sorted(set(target_map) - set(source_map))
@@ -53,7 +71,7 @@ class PairedAlignedImageDataset(Dataset):
             if missing_in_source:
                 details.append(f"missing source files: {missing_in_source[:10]}")
             raise ValueError(
-                "Source/target folders must contain the same filenames; "
+                "MITOS source/target folders must contain matching A... / H... pairs; "
                 + "; ".join(details)
             )
 
@@ -63,7 +81,8 @@ class PairedAlignedImageDataset(Dataset):
 
         if not self.filenames:
             raise ValueError(
-                f"No supported images found in {self.source_dir} and {self.target_dir}"
+                "No valid MITOS training pairs found. Expected source files like "
+                f"{self.source_prefix}... and target files like {self.target_prefix}..."
             )
 
     def __len__(self) -> int:
@@ -86,25 +105,43 @@ class PairedAlignedImageDataset(Dataset):
             ]
         )
     
-    # Building an image's filename → file path dictionary
-    # and checking that your paired dataset is safe to match by filename
-    def _build_file_map(self, files: list[Path]) -> dict[str, Path]:
+    # Building a pair-key -> path map where the pair key is the filename stem
+    # after the first scanner prefix character. Files that do not match the
+    # expected prefix are ignored so annotation/preview images are skipped.
+    def _build_file_map(
+        self,
+        files: list[Path],
+        expected_prefix: str,
+    ) -> dict[str, Path]:
         file_map: dict[str, Path] = {}
         duplicates: list[str] = []
         for path in files:
-            key = path.name # path.name is only the file's name, not path
-            if key in file_map: # checking if there are same IDs across folders
+            key = self._pair_key(path, expected_prefix=expected_prefix)
+            if key is None:
+                continue
+            if key in file_map:
                 duplicates.append(key)
-            file_map[key] = path # if there is a duplicate, overwrite older path with new one
+            file_map[key] = path
 
         if duplicates: #if duplicates exist, raise error
             dup_preview = ", ".join(sorted(set(duplicates))[:10])
             raise ValueError(
-                "Duplicate filenames are not supported for paired aligned training. "
+                "Duplicate MITOS pair keys are not supported for paired aligned training. "
                 f"Found duplicates such as: {dup_preview}"
             )
 
         return file_map
+
+    def _pair_key(self, path: Path, expected_prefix: str) -> str | None:
+        stem = path.stem
+        if not stem or stem[0] != expected_prefix:
+            return None
+
+        pair_key = stem[1:]
+        if not pair_key:
+            return None
+
+        return pair_key
     
     # loads one image file from disk and converts it into the exact numeric format the model wants
     def _load_image(self, path: Path) -> np.ndarray:
