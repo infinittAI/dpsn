@@ -58,6 +58,7 @@ class StainGANTrainingConfig:
     pool_size: int = 50 #  size of the image replay buffer for discriminator
     device: str = "auto"
     recursive: bool = True
+    gpu_ids: tuple[int, ...] = (1, 2, 3)
 
     @property
     def total_epochs(self) -> int:
@@ -68,7 +69,7 @@ def select_device(device: str) -> torch.device:
     if device != "auto":
         return torch.device(device)
     if torch.cuda.is_available():
-        return torch.device("cuda")
+        return torch.device("cuda:1")
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
@@ -115,6 +116,10 @@ def create_models(
         ndf=config.ndf,
         n_layers=config.discriminator_layers,
     ).to(device)
+    g_a2b = maybe_wrap_dataparallel(g_a2b, device, config.gpu_ids)
+    g_b2a = maybe_wrap_dataparallel(g_b2a, device, config.gpu_ids)
+    d_a = maybe_wrap_dataparallel(d_a, device, config.gpu_ids)
+    d_b = maybe_wrap_dataparallel(d_b, device, config.gpu_ids)
     return g_a2b, g_b2a, d_a, d_b
 
 
@@ -153,15 +158,42 @@ def save_checkpoint(
             "epoch": epoch,
             "experiment_name": config.experiment_name,
             "config": asdict(config),
-            "g_a2b_state_dict": g_a2b.state_dict(),
-            "g_b2a_state_dict": g_b2a.state_dict(),
-            "d_a_state_dict": d_a.state_dict(),
-            "d_b_state_dict": d_b.state_dict(),
+            "g_a2b_state_dict": unwrap_parallel(g_a2b).state_dict(),
+            "g_b2a_state_dict": unwrap_parallel(g_b2a).state_dict(),
+            "d_a_state_dict": unwrap_parallel(d_a).state_dict(),
+            "d_b_state_dict": unwrap_parallel(d_b).state_dict(),
             "optimizer_g_state_dict": optimizer_g.state_dict(),
             "optimizer_d_state_dict": optimizer_d.state_dict(),
         },
         path,
     )
+
+
+def maybe_wrap_dataparallel(
+    model: nn.Module,
+    device: torch.device,
+    gpu_ids: tuple[int, ...],
+) -> nn.Module:
+    if device.type != "cuda":
+        return model
+
+    if not gpu_ids:
+        raise ValueError("gpu_ids must not be empty when using CUDA training.")
+
+    available_gpu_count = torch.cuda.device_count()
+    max_gpu_id = max(gpu_ids)
+    if available_gpu_count <= max_gpu_id:
+        raise ValueError(
+            f"Requested gpu_ids {gpu_ids}, but only {available_gpu_count} CUDA device(s) are available."
+        )
+
+    return nn.DataParallel(model, device_ids=list(gpu_ids), output_device=gpu_ids[0])
+
+
+def unwrap_parallel(model: nn.Module) -> nn.Module:
+    if isinstance(model, nn.DataParallel):
+        return model.module
+    return model
 
 
 def _train_discriminator(
@@ -354,6 +386,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--pool-size", type=int, default=50)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--recursive", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--gpu-ids", type=int, nargs="+", default=[1, 2, 3])
     return parser
 
 
@@ -381,6 +414,7 @@ def main() -> None:
         pool_size=args.pool_size,
         device=args.device,
         recursive=args.recursive,
+        gpu_ids=tuple(args.gpu_ids),
     )
     checkpoint_path = train(config)
     print(f"Saved latest checkpoint to {checkpoint_path}")
