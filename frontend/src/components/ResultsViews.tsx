@@ -4,6 +4,7 @@ import { METRIC_DEFS } from '../data';
 import type { MetricDef, ModelUi, JobResult } from '../types';
 import Icon from './Icon';
 import { WsiView } from './WsiImage';
+import { getImageUrl } from '../api';
 
 interface MetricCardProps {
   def: MetricDef;
@@ -76,7 +77,8 @@ export function SingleResult({ model, result }: SingleResultProps) {
   const [zoom, setZoom] = useState(1);
   const seed = 7;
   const inner = { width: '100%', height: '100%', transform: `scale(${zoom})`, transformOrigin: 'center' as const, transition: 'transform 200ms' };
-
+  const imageUrl = getImageUrl(result.result_image_id);
+  
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -104,8 +106,9 @@ export function SingleResult({ model, result }: SingleResultProps) {
           </div>
           <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
             <div style={inner}>
-              <WsiView seed={seed} mode="norm" tint={model.tint} intensity={0.8} label="정규화 결과"
-                       sublabel={model.name} chip="AFTER" chipColor={model.tint} showGrid={showGrid}/>
+              {/* <WsiView seed={seed} mode="norm" tint={model.tint} intensity={0.8} label="정규화 결과"
+                       sublabel={model.name} chip="AFTER" chipColor={model.tint} showGrid={showGrid}/> */}
+              <img src={imageUrl} width="100%" height="100%" alt="정규화 결과"/>
             </div>
           </div>
         </div>

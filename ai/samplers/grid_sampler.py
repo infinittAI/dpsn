@@ -26,7 +26,6 @@ class GridSampler:
 
         size = wsi_handle.level_dimensions[level]
 
-
         patch_refs = []
         for i in range(0, size[0] - stride + 1, stride):
             for j in range(0, size[1] - stride + 1, stride):

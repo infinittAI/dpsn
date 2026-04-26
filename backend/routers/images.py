@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pathlib import Path
-from services import image_store
+
+from backend.services import image_store
 
 router = APIRouter()
 

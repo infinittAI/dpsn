@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks
-from schemas import JobResponse, JobStatusResponse, JobResultResponse
-from services import job_runner, image_store
+from backend.schemas import JobResponse, JobStatusResponse, JobResultResponse
+from backend.services import job_runner, image_store
 
 router = APIRouter()
 

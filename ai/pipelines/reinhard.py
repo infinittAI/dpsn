@@ -26,7 +26,7 @@ class Reinhard(ModelPipeline):
         logger: logging.Logger,
         batch_size: int = 64,
         patch_size: int = 256,
-        max_sample_patches: int = 3,
+        max_sample_patches: int = 16,
         max_iteration: int = 32
     ):
         super().__init__(logger=logger)
@@ -146,14 +146,15 @@ class Reinhard(ModelPipeline):
         self.logger.info("Finish normalize")
         self.logger.info(f"Elapsed time: load({timer['load']:.4f}s), transform({timer['transform']:.4f}), writer({timer['writer']:.4f})")
         
+        output_path = "result/out_image.png"
         image = writer.get_thumbnail(max_size=4096)
-        image.save("result/out_image.png")
+        image.save(output_path)
         self.logger.info(f"Save Normalized Image: {image.width} x {image.height}")
 
         shutil.rmtree(temp_file)
 
         return PipelineResult(
-            output_path="result/out_image.png"
+            output_path=output_path
         )
         
     

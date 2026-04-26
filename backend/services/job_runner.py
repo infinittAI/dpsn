@@ -5,7 +5,7 @@ from fastapi import BackgroundTasks
 
 from ai.runtime.task import Task
 from ai.runtime.worker import Worker
-from services import image_store
+from backend.services import image_store
 
 jobs: dict = {}
 _worker = Worker()
@@ -16,9 +16,10 @@ def run_job(job_id: str, model_id: int, image_id: str):
 
     try:
         src_path = image_store.get_image_path(image_id)
+        tgt_path = "data/GTEX-1117F-0126.svs"
         task = Task(
             src_img_path=Path(src_path),
-            target_img_path=Path(src_path),
+            target_img_path=Path(tgt_path),
             model_id=model_id
         )
         task_result = _worker.run(task, emit_event=None)
