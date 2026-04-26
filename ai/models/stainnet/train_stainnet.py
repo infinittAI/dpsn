@@ -49,6 +49,7 @@ class StainNetTrainingConfig:
     recursive: bool = True # whether the dataset loader searches only the top-level folder or also all nested subfolders for images
     source_prefix: str = "A"
     target_prefix: str = "H"
+    gpu_ids: tuple[int, ...] = (1, 2, 3)
 
 
 def create_model(config: StainNetTrainingConfig) -> StainNet:
@@ -177,7 +178,7 @@ def save_checkpoint(
         {
             "epoch": epoch,
             "experiment_name": config.experiment_name,
-            "model_state_dict": model.state_dict(),
+            "model_state_dict": unwrap_parallel(model).state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "config": asdict(config),
         },
@@ -214,6 +215,11 @@ def train(config: StainNetTrainingConfig) -> Path:
         )
 
     model = create_model(config).to(device)
+    model = maybe_wrap_dataparallel(
+        model=model,
+        device=device,
+        gpu_ids=config.gpu_ids,
+    )
     optimizer = SGD(model.parameters(), lr=config.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs) # A scheduler gradually adjusts the learning rate 
     loss_fn = nn.L1Loss()
@@ -264,10 +270,37 @@ def select_device(device: str) -> torch.device:
     if device != "auto":
         return torch.device(device)
     if torch.cuda.is_available():
-        return torch.device("cuda")
+        return torch.device("cuda:1")
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
+
+
+def maybe_wrap_dataparallel(
+    model: nn.Module,
+    device: torch.device,
+    gpu_ids: tuple[int, ...],
+) -> nn.Module:
+    if device.type != "cuda":
+        return model
+
+    if not gpu_ids:
+        raise ValueError("gpu_ids must not be empty when using CUDA training.")
+
+    available_gpu_count = torch.cuda.device_count()
+    max_gpu_id = max(gpu_ids)
+    if available_gpu_count <= max_gpu_id:
+        raise ValueError(
+            f"Requested gpu_ids {gpu_ids}, but only {available_gpu_count} CUDA device(s) are available."
+        )
+
+    return nn.DataParallel(model, device_ids=list(gpu_ids), output_device=gpu_ids[0])
+
+
+def unwrap_parallel(model: nn.Module) -> nn.Module:
+    if isinstance(model, nn.DataParallel):
+        return model.module
+    return model
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -292,6 +325,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--recursive", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--source-prefix", type=str, default="A")
     parser.add_argument("--target-prefix", type=str, default="H")
+    parser.add_argument("--gpu-ids", type=int, nargs="+", default=[1, 2, 3])
     return parser
 
 
@@ -318,6 +352,7 @@ def main() -> None:
         recursive=args.recursive,
         source_prefix=args.source_prefix,
         target_prefix=args.target_prefix,
+        gpu_ids=tuple(args.gpu_ids),
     )
     checkpoint_path = train(config)
     print(f"Saved latest checkpoint to {checkpoint_path}")
