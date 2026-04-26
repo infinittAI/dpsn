@@ -109,7 +109,7 @@ function ConfigColumn({ file, onPickFile, onClearFile, selected, onToggleModel, 
           </div>
           <button className="btn primary lg" disabled={!canRun || running} onClick={onRun} style={{ flexShrink: 0 }}>
             <Icon name="play" size={14}/>
-            {running ? '실행 중…' : selected.size > 1 ? `모델 ${selected.size}개 실행` : '정규화 실행'}
+            {running ? '실행 중…' : selected.size > 1 ? `${selected.size}개 모델 실행` : '정규화 실행'}
           </button>
         </div>
       </div>
