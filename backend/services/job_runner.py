@@ -18,7 +18,7 @@ def run_job(job_id: str, model_id: int, image_id: str):
         src_path = image_store.get_image_path(image_id)
         task = Task(
             src_img_path=Path(src_path),
-            target_img_path=None,
+            target_img_path=Path(src_path),
             model_id=model_id
         )
         task_result = _worker.run(task, emit_event=None)

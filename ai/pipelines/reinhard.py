@@ -1,9 +1,10 @@
 from pathlib import Path
 
+from collections import defaultdict
 import numpy as np
+from PIL import Image
 from skimage import color
 import time
-from collections import defaultdict
 from tqdm import tqdm
 
 from ai.metrics.base import Metric
@@ -21,7 +22,7 @@ class Reinhard(ModelPipeline):
     def __init__(self):
         super().__init__()
         self.patch_sampler = PatchSampler()
-        self.grid_sampler = GridSampler(read_level=3)
+        self.grid_sampler = GridSampler(read_level=2)
 
     def run(
         self,
@@ -36,6 +37,14 @@ class Reinhard(ModelPipeline):
         src_wsi_handle = open_wsi_handle(src_img_path)
         target_wsi_handle = open_wsi_handle(target_img_path)
 
+        src_thumb_ref = src_wsi_handle.make_ref((0, 0), src_wsi_handle.max_level)
+        target_thumb_ref = target_wsi_handle.make_ref((0, 0), target_wsi_handle.max_level)
+        src_thumb = Image.fromarray(load_patch(src_thumb_ref).img.transpose([1, 2, 0]))
+        target_thumb = Image.fromarray(load_patch(target_thumb_ref).img.transpose([1, 2, 0]))
+        
+        src_thumb.save("source.png")
+        target_thumb.save("target.png")
+
         src_ref = self.patch_sampler.sample(src_wsi_handle, max_patches=1)[0]
         src_patch = load_patch(src_ref)
         target_ref = self.patch_sampler.sample(target_wsi_handle, max_patches=1)[0]
@@ -49,8 +58,8 @@ class Reinhard(ModelPipeline):
         batch_size = 64
         writer = ZarrWSIWriter(
             "out_img", 
-            src_wsi_handle.level_dimensions[3][0], 
-            src_wsi_handle.level_dimensions[3][1],
+            src_wsi_handle.level_dimensions[2][0], 
+            src_wsi_handle.level_dimensions[2][1],
             tile_size = src_refs[0].read_size[0]
         )
 
@@ -62,9 +71,7 @@ class Reinhard(ModelPipeline):
             patches = load_patches_from_image(batch_ref, src_img_path)
             timer['load'] += time.time() - t0
 
-            t0 = time.time()
             patches = np.stack([patch.img for patch in patches], axis=0)
-            timer['stack'] += time.time() - t0
 
             t0 = time.time()
             new_patches = self.transform_image(patches, target_means, target_stds, src_means, src_stds)
@@ -80,7 +87,9 @@ class Reinhard(ModelPipeline):
 
         print(dict(timer))
 
-        return PipelineResult(output_path="out_image.png")
+        return PipelineResult(
+            output_path="out_image.png"
+        )
         
     
     def get_reinhard_stats(self, image: np.ndarray):
@@ -113,7 +122,10 @@ class Reinhard(ModelPipeline):
         lab = color.rgb2lab(image / 255.0)
         lab = (lab - src_means)/src_stds * target_stds + target_means
         
-        image = color.lab2rgb(lab) * 255.0
+        lab[:, 0, :, :] = np.clip(lab[:, 0, :, :], 0, 100)
+        lab[:, 1:, :, :] = np.clip(lab[:, 1:, :, :], -128, 127)
+
+        image = np.clip(color.lab2rgb(lab) * 255.0, 0, 255)
         image = image.transpose([0, 3, 1, 2])
 
         return image

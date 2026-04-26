@@ -20,9 +20,12 @@ class WSIHandle:
     mpp: tuple[float, float]  #microns per pixel for x, y
     level_dimensions: tuple   #image size for each pyramid level eg. (80000, 60000), (20000, 15000),...
     level_downsamples: tuple  #how much each level is downsampled relative to lv 0 eg. 4 : downsampled by 4
+
+    @property
+    def max_level(self): return len(self.level_dimensions) - 1
     
     # 해당 레벨에서, Image의 (pos[0], pos[1]) 부터 (pos[0] + dim[0], pos[1] + dim[1]) 까지의 범위를 crop. PatchRef object 를 만든다.
-    def make_ref(self, pos: tuple[int, int], level: int, dim: tuple[int, int]) -> PatchRef:
+    def make_ref(self, pos: tuple[int, int] = (0, 0), level: int = 0, dim: tuple[int, int] | None = None) -> PatchRef:
         level_count = len(self.level_dimensions) #count how many levels exist
 
         if not (0 <= level < level_count): #check if requested level is valid
@@ -32,6 +35,7 @@ class WSIHandle:
         
         # Image의 범위가 유효한지 확인
         img_width, img_height = self.level_dimensions[level]
+        dim = dim or (img_width, img_height)
 
         if not (0 <= pos[0] <= img_width - dim[0]):
             raise ValueError(
