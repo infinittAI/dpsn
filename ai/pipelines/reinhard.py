@@ -12,7 +12,7 @@ from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler
 from ai.samplers.patch_sampler import PatchSampler
 from ai.wsi.handle import open_wsi_handle
-from ai.wsi.loader import load_patch
+from ai.wsi.loader import load_patches_from_image, load_patch
 from ai.wsi.writer import ZarrWSIWriter
 
 class Reinhard(ModelPipeline):
@@ -46,7 +46,6 @@ class Reinhard(ModelPipeline):
 
         src_refs = self.grid_sampler.sample(src_wsi_handle)
 
-        scores = dict()
         batch_size = 64
         writer = ZarrWSIWriter(
             "out_img", 
@@ -55,21 +54,31 @@ class Reinhard(ModelPipeline):
             tile_size = src_refs[0].read_size[0]
         )
 
-        for idx in tqdm(range(0, len(src_refs), batch_size)):
-            batch_ref = src_refs[idx:idx + batch_size]
-            patches = np.stack([load_patch(ref).img for ref in batch_ref], axis=0)
-            
-            new_patches = self.transform_image(patches, target_means, target_stds, src_means, src_stds)
-            
-            for i, ref in enumerate(batch_ref):
-                for key, metric in metrics.items():
-                    metric.evaluate(patches[i], new_patches[i])
+        timer = defaultdict(float)
 
+        for idx in tqdm(range(0, len(src_refs), batch_size)):
+            t0 = time.time()
+            batch_ref = src_refs[idx:idx + batch_size]
+            patches = load_patches_from_image(batch_ref, src_img_path)
+            timer['load'] += time.time() - t0
+
+            t0 = time.time()
+            patches = np.stack([patch.img for patch in patches], axis=0)
+            timer['stack'] += time.time() - t0
+
+            t0 = time.time()
+            new_patches = self.transform_image(patches, target_means, target_stds, src_means, src_stds)
+            timer['transform'] += time.time() - t0
+
+            t0 = time.time()
             for i, ref in enumerate(batch_ref):
                 writer.write_patch(ref, new_patches[i])
+            timer['writer'] += time.time() - t0
                 
         image = writer.get_thumbnail()
         image.save("out_image.png")
+
+        print(dict(timer))
 
         return PipelineResult(output_path="out_image.png")
         

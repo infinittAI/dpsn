@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import openslide
+from pathlib import Path
 
 from ai.wsi.patch import Patch
 from ai.wsi.patch_ref import PatchRef
@@ -37,3 +38,26 @@ def load_patch(ref: PatchRef) -> Patch:
         ref=ref,
         img=img_chw,
     )
+
+def load_patches_from_image(refs: list[PatchRef], image_path: str | Path) -> list[Patch]:
+    patches = []
+    with openslide.OpenSlide(image_path) as slide: # opens the WSI file and reads one patch from it
+        for ref in refs:
+            region = slide.read_region(
+                ref.level0_pos, # Top-left patch location in level-0 coordinates
+                ref.read_level, # Which level to read from
+                ref.read_size,  # Patch size in pixels at read_level
+            )
+
+            # OpenSlide returns a PIL image in RGBA. Convert to RGB - drop alpha channel
+            rgb = region.convert("RGB")
+
+            # PIL gives HWC (height, width, channel); Patch expects [C, H, W], so transpose the axes.
+            img_hwc = np.asarray(rgb, dtype=np.uint8)
+            img_chw = np.transpose(img_hwc, (2, 0, 1))
+
+            patches.append(Patch(
+                ref=ref,
+                img=img_chw,
+            ))
+    return patches

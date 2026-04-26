@@ -8,9 +8,9 @@ class GridSampler:
         stride: int | None = None,
         read_level: int = 0,
     ):
-        self.patch_size = patch_size
-        self.stride = stride
-        self.read_level = read_level
+        self.patch_size = int(patch_size)
+        self.stride = stride or int(patch_size)
+        self.read_level = int(read_level)
     
     def sample(
         self, 

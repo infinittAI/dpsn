@@ -12,6 +12,6 @@ class SSIM(Metric):
         origin_patch: np.ndarray,
         normalized_patch: np.ndarray
     ) -> float:
-        score = ssim(origin_patch, normalized_patch, data_range=255, channel_axis=0)
+        score = ssim(origin_patch, normalized_patch, data_range=255, channel_axis=1)
         
         return score

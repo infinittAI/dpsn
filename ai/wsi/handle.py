@@ -16,7 +16,7 @@ class UnsupportedWSIFormatError(WSIHandleError):
 @dataclass
 class WSIHandle:
     image_path: Path          #file path of WSI
-    dim: tuple[int, int]      #full image size at lv 0
+    dim: tuple[int, int]      #full image size at lv 0, [w, h]
     mpp: tuple[float, float]  #microns per pixel for x, y
     level_dimensions: tuple   #image size for each pyramid level eg. (80000, 60000), (20000, 15000),...
     level_downsamples: tuple  #how much each level is downsampled relative to lv 0 eg. 4 : downsampled by 4
