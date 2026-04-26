@@ -1,3 +1,6 @@
+import math
+import logging
+
 from ai.wsi.handle import WSIHandle
 from ai.wsi.patch_ref import PatchRef
 
@@ -7,17 +10,22 @@ class GridSampler:
         patch_size: int = 256,
         stride: int | None = None,
         read_level: int = 0,
+        logger: logging.Logger | None = None
     ):
         self.patch_size = int(patch_size)
         self.stride = stride or int(patch_size)
         self.read_level = int(read_level)
+        self.logger = logger
     
     def sample(
         self, 
-        wsi_handle: WSIHandle
+        wsi_handle: WSIHandle,
     ) -> list[PatchRef]:
-        size = wsi_handle.level_dimensions[self.read_level]
         stride = self.patch_size if self.stride is None else self.stride
+        level = self.read_level
+
+        size = wsi_handle.level_dimensions[level]
+
 
         patch_refs = []
         for i in range(0, size[0] - stride + 1, stride):
