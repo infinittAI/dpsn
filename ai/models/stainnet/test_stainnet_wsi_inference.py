@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import tempfile
+import time
 
 import tifffile
 import torch
@@ -31,11 +32,18 @@ def run_inference_smoke_test(
     output_dir: Path,
     batch_size: int,
     allow_single_level: bool,
+    log_every_batches: int,
 ) -> Path:
     if not input_wsi.is_file():
         raise FileNotFoundError(f"Input WSI not found: {input_wsi}")
 
+    print(f"[smoke] Opening input WSI: {input_wsi}", flush=True)
     wsi_handle = open_wsi_handle(input_wsi)
+    print(
+        f"[smoke] Opened WSI. level_count={len(wsi_handle.level_dimensions)} "
+        f"level_dimensions={wsi_handle.level_dimensions}",
+        flush=True,
+    )
     if len(wsi_handle.level_dimensions) < 2 and not allow_single_level:
         raise ValueError(
             f"Input WSI must be pyramidal for this smoke test, got {len(wsi_handle.level_dimensions)} level(s)."
@@ -45,15 +53,31 @@ def run_inference_smoke_test(
     if checkpoint_path is None:
         temp_dir = tempfile.TemporaryDirectory()
         checkpoint_path = create_temp_checkpoint(Path(temp_dir.name) / "stainnet_temp.pth")
+        print(f"[smoke] Created temporary checkpoint: {checkpoint_path}", flush=True)
+    else:
+        print(f"[smoke] Using checkpoint: {checkpoint_path}", flush=True)
 
     config = StainNetInferenceConfig(
         checkpoint_path=checkpoint_path,
         output_dir=output_dir,
         read_level=read_level,
         batch_size=batch_size,
+        verbose=True,
+        log_every_batches=log_every_batches,
     )
+    print(
+        "[smoke] Creating StainNet pipeline with "
+        f"read_level={read_level}, batch_size={batch_size}, output_dir={output_dir}",
+        flush=True,
+    )
+    started_at = time.time()
     pipeline = StainNetPipeline(config=config)
+    print("[smoke] Pipeline created. Starting inference...", flush=True)
     result = pipeline.run(input_wsi)
+    print(
+        f"[smoke] Inference returned after {time.time() - started_at:.1f}s",
+        flush=True,
+    )
 
     output_path = Path(result.output_path)
     if not output_path.exists():
@@ -89,6 +113,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=Path("result_stainnet_smoke"))
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--allow-single-level", action="store_true")
+    parser.add_argument("--log-every-batches", type=int, default=10)
     return parser
 
 
@@ -101,6 +126,7 @@ def main() -> None:
         output_dir=args.output_dir,
         batch_size=args.batch_size,
         allow_single_level=args.allow_single_level,
+        log_every_batches=args.log_every_batches,
     )
 
 

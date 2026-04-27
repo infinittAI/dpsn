@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import pickle
 from pathlib import Path
 from pathlib import PosixPath, WindowsPath
+import time
 from typing import Any
 
 import numpy as np
@@ -43,6 +44,8 @@ class StainNetInferenceConfig:
     device: str = "auto"
     compression: str | None = None # whether to compress the output TIFF, and by which method
     keep_store: bool = False # whether to keep the writer’s intermediate storage after output is finalized
+    verbose: bool = False
+    log_every_batches: int = 10
 
 # Class that performs the whole inference procedure on a WSI
 class StainNetPipeline(ModelPipeline):
@@ -87,6 +90,14 @@ class StainNetPipeline(ModelPipeline):
         )
         refs = self.grid_sampler.sample(src_wsi_handle)
         output_path = self._build_output_path(src_img_path)
+        total_refs = len(refs)
+        total_batches = (total_refs + self.config.batch_size - 1) // self.config.batch_size
+
+        self._log(
+            f"Loaded WSI metadata: read_level={self.config.read_level}, "
+            f"level_shape=({read_w}, {read_h}), total_patches={total_refs}, "
+            f"batch_size={self.config.batch_size}, total_batches={total_batches}"
+        )
 
         writer = TiffWSIWriter(
             output_path=output_path,
@@ -103,6 +114,7 @@ class StainNetPipeline(ModelPipeline):
             keep_store=self.config.keep_store,
         )
 
+        run_start = time.time()
         for start in range(0, len(refs), self.config.batch_size):
             batch_refs = refs[start:start + self.config.batch_size]
             batch_patches = [load_patch(ref).img for ref in batch_refs]
@@ -111,7 +123,35 @@ class StainNetPipeline(ModelPipeline):
             for ref, normalized_patch in zip(batch_refs, normalized_batch):
                 writer.write_patch(ref, normalized_patch)
 
+            batch_index = (start // self.config.batch_size) + 1
+            if (
+                batch_index == 1
+                or batch_index == total_batches
+                or batch_index % max(self.config.log_every_batches, 1) == 0
+            ):
+                elapsed = time.time() - run_start
+                processed = min(start + len(batch_refs), total_refs)
+                rate = processed / elapsed if elapsed > 0 else 0.0
+                remaining = total_refs - processed
+                eta_seconds = remaining / rate if rate > 0 else float("inf")
+                eta_text = (
+                    f"{eta_seconds:.1f}s"
+                    if np.isfinite(eta_seconds)
+                    else "unknown"
+                )
+                self._log(
+                    f"Processed batch {batch_index}/{total_batches} "
+                    f"({processed}/{total_refs} patches, "
+                    f"{rate:.2f} patches/s, eta {eta_text})"
+                )
+
+        self._log("Finalizing TIFF writer...")
         final_output_path = writer.finalize()
+        total_elapsed = time.time() - run_start
+        self._log(
+            f"Finished inference in {total_elapsed:.1f}s. "
+            f"Output written to {final_output_path}"
+        )
         return PipelineResult(output_path=str(final_output_path))
 
     def _validate_config(self) -> None:
@@ -253,6 +293,10 @@ class StainNetPipeline(ModelPipeline):
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(src_img_path).stem
         return self.config.output_dir / f"{stem}_stainnet.tiff"
+
+    def _log(self, message: str) -> None:
+        if self.config.verbose:
+            print(f"[StainNetPipeline] {message}", flush=True)
 
 
 # Backward-compatible alias while the rest of the project catches up.
