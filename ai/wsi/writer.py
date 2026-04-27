@@ -88,13 +88,7 @@ class TiffWSIWriter(PatchWriter):
             shutil.rmtree(self.store_path)
 
         self.root = zarr.open_group(str(self.store_path), mode="w")
-        self.image = self.root.create_array(
-            name="image",
-            shape=(self.height, self.width, self.channels),
-            chunks=(self.tile_size, self.tile_size, self.channels),
-            dtype=np.uint8,
-            fill_value=0,
-        )
+        self.image = self._create_zarr_image(self.root)
 
         self.root.attrs.update(
             {
@@ -173,6 +167,22 @@ class TiffWSIWriter(PatchWriter):
         x = int(round(ref.x / self.level_downsample))
         y = int(round(ref.y / self.level_downsample))
         return (x, y)
+
+    def _create_zarr_image(self, root):
+        kwargs = {
+            "name": "image",
+            "shape": (self.height, self.width, self.channels),
+            "chunks": (self.tile_size, self.tile_size, self.channels),
+            "dtype": np.uint8,
+            "fill_value": 0,
+        }
+        if hasattr(root, "create_array"):
+            return root.create_array(**kwargs)
+        if hasattr(root, "create_dataset"):
+            return root.create_dataset(**kwargs)
+        raise AttributeError(
+            "Zarr group does not support create_array or create_dataset."
+        )
 
     def _to_hwc_uint8(self, img: np.ndarray) -> np.ndarray:
         if not isinstance(img, np.ndarray):
@@ -280,13 +290,7 @@ class ZarrWSIWriter(PatchWriter):
             shutil.rmtree(self.output_path)
 
         self.root = zarr.open_group(str(self.output_path), mode="w")
-        self.image = self.root.create_array(
-            name="image",
-            shape=(self.height, self.width, self.channels),
-            chunks=(self.tile_size, self.tile_size, self.channels),
-            dtype=np.uint8,
-            fill_value=0,
-        )
+        self.image = self._create_zarr_image(self.root)
 
     def write_patch(self, ref: PatchRef, img: np.ndarray) -> None:
         x1 = int(round(ref.x / self.level_downsample))
@@ -321,3 +325,19 @@ class ZarrWSIWriter(PatchWriter):
             raise ValueError(f"img must be uint8, got {img.dtype}")
 
         return np.transpose(img, (1, 2, 0))
+
+    def _create_zarr_image(self, root):
+        kwargs = {
+            "name": "image",
+            "shape": (self.height, self.width, self.channels),
+            "chunks": (self.tile_size, self.tile_size, self.channels),
+            "dtype": np.uint8,
+            "fill_value": 0,
+        }
+        if hasattr(root, "create_array"):
+            return root.create_array(**kwargs)
+        if hasattr(root, "create_dataset"):
+            return root.create_dataset(**kwargs)
+        raise AttributeError(
+            "Zarr group does not support create_array or create_dataset."
+        )
