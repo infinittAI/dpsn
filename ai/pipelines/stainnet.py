@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import pickle
 from pathlib import Path
+from pathlib import PosixPath, WindowsPath
 from typing import Any
 
 import numpy as np
@@ -136,15 +138,36 @@ class StainNetPipeline(ModelPipeline):
         )
 
         checkpoint_path = self._resolve_checkpoint_path()
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location=self.device,
-            weights_only=True,
-        )
+        checkpoint = self._load_checkpoint(checkpoint_path)
         state_dict = self._extract_state_dict(checkpoint)
         state_dict = self._strip_module_prefix(state_dict)
         model.load_state_dict(state_dict)
         return model
+
+    def _load_checkpoint(self, checkpoint_path: Path) -> Any:
+        try:
+            return torch.load(
+                checkpoint_path,
+                map_location=self.device,
+                weights_only=True,
+            )
+        except pickle.UnpicklingError as exc:
+            # Our own training checkpoints store config metadata containing
+            # pathlib paths, which strict weights-only loading blocks unless
+            # those classes are explicitly allowlisted.
+            torch.serialization.add_safe_globals([Path, PosixPath, WindowsPath])
+            try:
+                return torch.load(
+                    checkpoint_path,
+                    map_location=self.device,
+                    weights_only=True,
+                )
+            except pickle.UnpicklingError:
+                raise ValueError(
+                    "Failed to load the StainNet checkpoint in weights-only mode. "
+                    "If this checkpoint was produced outside this project, inspect "
+                    "its contents before relaxing the loader further."
+                ) from exc
 
     def _resolve_checkpoint_path(self) -> Path:
         if self.config.checkpoint_path is not None:
