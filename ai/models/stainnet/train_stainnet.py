@@ -43,7 +43,7 @@ class StainNetTrainingConfig:
     batch_size: int = 8
     num_workers: int = 0
     lr: float = 0.01
-    epochs: int = 10
+    epochs: int = 50
     device: str = "auto"
     experiment_name: str = "stainnet"
     recursive: bool = True # whether the dataset loader searches only the top-level folder or also all nested subfolders for images
