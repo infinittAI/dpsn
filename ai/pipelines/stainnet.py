@@ -136,7 +136,11 @@ class StainNetPipeline(ModelPipeline):
         )
 
         checkpoint_path = self._resolve_checkpoint_path()
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        checkpoint = torch.load(
+            checkpoint_path,
+            map_location=self.device,
+            weights_only=True,
+        )
         state_dict = self._extract_state_dict(checkpoint)
         state_dict = self._strip_module_prefix(state_dict)
         model.load_state_dict(state_dict)
