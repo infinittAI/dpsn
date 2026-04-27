@@ -10,11 +10,12 @@ from typing import Any
 import numpy as np
 import torch
 
+from ai.metrics.ssim import SSIM
 from ai.models.stainnet.stainnet_model import StainNet as StainNetModel
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler
-from ai.wsi.handle import open_wsi_handle
+from ai.wsi.handle import WSIHandle, open_wsi_handle
 from ai.wsi.loader import load_patch
 from ai.wsi.writer import TiffWSIWriter
 
@@ -46,6 +47,7 @@ class StainNetInferenceConfig:
     keep_store: bool = False # whether to keep the writer’s intermediate storage after output is finalized
     verbose: bool = False
     log_every_batches: int = 10
+    compute_ssim: bool = True
 
 # Class that performs the whole inference procedure on a WSI
 class StainNetPipeline(ModelPipeline):
@@ -92,6 +94,16 @@ class StainNetPipeline(ModelPipeline):
         output_path = self._build_output_path(src_img_path)
         total_refs = len(refs)
         total_batches = (total_refs + self.config.batch_size - 1) // self.config.batch_size
+
+        checkpoint_path = self._resolve_checkpoint_path()
+        self._log_run_summary(
+            src_img_path=src_img_path,
+            checkpoint_path=checkpoint_path,
+            output_path=output_path,
+            wsi_handle=src_wsi_handle,
+            total_refs=total_refs,
+            total_batches=total_batches,
+        )
 
         self._log(
             f"Loaded WSI metadata: read_level={self.config.read_level}, "
@@ -148,10 +160,21 @@ class StainNetPipeline(ModelPipeline):
         self._log("Finalizing TIFF writer...")
         final_output_path = writer.finalize()
         total_elapsed = time.time() - run_start
+        ssim_score = None
+        if self.config.compute_ssim:
+            self._log("Computing SSIM against the input WSI...")
+            normalized_wsi_handle = open_wsi_handle(final_output_path)
+            ssim_score = self._compute_ssim(
+                origin_image=src_wsi_handle,
+                normalized_image=normalized_wsi_handle,
+            )
+
         self._log(
             f"Finished inference in {total_elapsed:.1f}s. "
             f"Output written to {final_output_path}"
         )
+        if ssim_score is not None:
+            self._log(f"SSIM: {ssim_score:.6f}")
         return PipelineResult(output_path=str(final_output_path))
 
     def _validate_config(self) -> None:
@@ -293,6 +316,44 @@ class StainNetPipeline(ModelPipeline):
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(src_img_path).stem
         return self.config.output_dir / f"{stem}_stainnet.tiff"
+
+    def _compute_ssim(
+        self,
+        origin_image: WSIHandle,
+        normalized_image: WSIHandle,
+    ) -> float:
+        metric = SSIM(
+            patch_size=self.config.patch_size,
+            stride=self.config.stride,
+            read_level=self.config.read_level,
+        )
+        return metric.evaluate(origin_image, normalized_image)
+
+    def _log_run_summary(
+        self,
+        src_img_path: Path,
+        checkpoint_path: Path,
+        output_path: Path,
+        wsi_handle: WSIHandle,
+        total_refs: int,
+        total_batches: int,
+    ) -> None:
+        self._log("Run configuration:")
+        self._log(f"  input_path={src_img_path}")
+        self._log(f"  checkpoint_path={checkpoint_path}")
+        self._log(f"  output_path={output_path}")
+        self._log(f"  read_level={self.config.read_level}")
+        self._log(f"  patch_size={self.config.patch_size}")
+        self._log(f"  stride={self.config.stride}")
+        self._log(f"  batch_size={self.config.batch_size}")
+        self._log(f"  tile_size={self.config.tile_size}")
+        self._log(f"  pyramid_levels={self.config.pyramid_levels}")
+        self._log(f"  compression={self.config.compression}")
+        self._log(f"  device={self.device}")
+        self._log(f"  compute_ssim={self.config.compute_ssim}")
+        self._log(f"  level_dimensions={wsi_handle.level_dimensions}")
+        self._log(f"  total_patches={total_refs}")
+        self._log(f"  total_batches={total_batches}")
 
     def _log(self, message: str) -> None:
         if self.config.verbose:
