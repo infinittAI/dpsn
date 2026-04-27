@@ -14,8 +14,7 @@ from ai.pipelines.base import ModelPipeline
 from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler
 from ai.samplers.patch_sampler import PatchSampler
-from ai.wsi.handle import open_wsi_handle
-from ai.wsi.loader import load_patches_from_image, load_patch
+from ai.wsi.loader import load_patches_from_image, load_patch, open_wsi_handle
 from ai.wsi.writer import ZarrWSIWriter
 
 class Reinhard(ModelPipeline):
@@ -75,7 +74,7 @@ class Reinhard(ModelPipeline):
             mode="training",
             save_debug=False
         )
-        src_ref_patches = load_patches_from_image(src_ref_list, src_img_path)
+        src_ref_patches = [load_patch(ref) for ref in src_ref_list]
         self.logger.info(f"Patches: {len(src_ref_patches)}")
 
         self.logger.info("Sample target image")
@@ -85,7 +84,7 @@ class Reinhard(ModelPipeline):
             mode="training",
             save_debug=False
         )
-        tgt_ref_patches = load_patches_from_image(tgt_ref_list, target_img_path)
+        tgt_ref_patches = [load_patch(ref) for ref in tgt_ref_list]
         self.logger.info(f"Patches: {len(tgt_ref_patches)}")
 
         tgt_images = np.stack([patch.img for patch in tgt_ref_patches], axis=0)
@@ -129,7 +128,7 @@ class Reinhard(ModelPipeline):
         for idx in tqdm(range(0, len(src_refs), self.batch_size)):
             t0 = time.time()
             batch_ref = src_refs[idx:idx + self.batch_size]
-            patches = load_patches_from_image(batch_ref, src_img_path)
+            patches = [load_patch(ref) for ref in batch_ref]
             timer['load'] += time.time() - t0
 
             patches = np.stack([patch.img for patch in patches], axis=0)
@@ -144,7 +143,7 @@ class Reinhard(ModelPipeline):
             timer['writer'] += time.time() - t0
         
         self.logger.info("Finish normalize")
-        self.logger.info(f"Elapsed time: load({timer['load']:.4f}s), transform({timer['transform']:.4f}), writer({timer['writer']:.4f})")
+        self.logger.info(f"Elapsed time: load({timer['load']:.4f}s), transform({timer['transform']:.4f}s), writer({timer['writer']:.4f}s)")
         
         output_path = "result/out_image.png"
         image = writer.get_thumbnail(max_size=4096)

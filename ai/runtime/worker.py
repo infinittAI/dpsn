@@ -9,7 +9,7 @@ from ai.pipelines.base import ModelPipeline
 from ai.pipelines.reinhard import Reinhard
 
 # model_id → pipeline 매핑 
-PIPELINE_MAP: dict[int, Callable] = {
+PIPELINE_MAP: dict[int, Callable[..., ModelPipeline]] = {
     1: lambda params: Reinhard(**params),
     # 2: Macenko(),  
     # 3: Vahadane(),  
