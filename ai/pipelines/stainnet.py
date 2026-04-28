@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import pickle
+import logging
 from pathlib import Path
 from pathlib import PosixPath, WindowsPath
 import time
@@ -11,12 +12,13 @@ import numpy as np
 import torch
 
 from ai.metrics.ssim import SSIM
+from ai.metrics.base import Metric
 from ai.models.stainnet.stainnet_model import StainNet as StainNetModel
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler
-from ai.wsi.handle import WSIHandle, open_wsi_handle
-from ai.wsi.loader import load_patch
+from ai.wsi.handle import WSIHandle
+from ai.wsi.loader import load_patch, open_wsi_handle
 from ai.wsi.writer import TiffWSIWriter
 
 # class that stores all settings needed for StainNet WSI inference
@@ -58,8 +60,8 @@ class StainNetPipeline(ModelPipeline):
     folders and lives in separate dataset/training modules.
     """
 
-    def __init__(self, config: StainNetInferenceConfig | None = None) -> None:
-        super().__init__()
+    def __init__(self, logger: logging.Logger, config: StainNetInferenceConfig | None = None) -> None:
+        super().__init__(logger=logger)
         self.config = config or StainNetInferenceConfig()
         self._validate_config()
 
@@ -76,6 +78,7 @@ class StainNetPipeline(ModelPipeline):
         self,
         src_img_path: Path,
         target_img_path: Path | None = None,
+        metrics: dict[str, Metric] | None = None
     ) -> PipelineResult:
         del target_img_path
 
@@ -175,7 +178,7 @@ class StainNetPipeline(ModelPipeline):
         )
         if ssim_score is not None:
             self._log(f"SSIM: {ssim_score:.6f}")
-        return PipelineResult(output_path=str(final_output_path))
+        return PipelineResult(output_path=str(final_output_path), scores={})
 
     def _validate_config(self) -> None:
         if self.config.patch_size <= 0:

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from importlib import import_module
+import logging
 from pathlib import Path
 from typing import Any
 
 from ai.metrics.ssim import SSIM
+from ai.metrics.psnr import PSNR
+from ai.metrics.fid import FID
 from ai.pipelines.base import ModelPipeline
 from ai.runtime.task import Metrics, Task, TaskResult
 
@@ -38,7 +41,11 @@ class Worker:
         pipeline_result = pipeline.run(
             task.src_img_path, 
             task.target_img_path,
-            {"ssim": SSIM()}
+            {
+                "ssim": SSIM(),
+                "psnr": PSNR(),
+                "fid": FID(),
+            }
         )
 
         result_img_path = self._get_result_img_path(pipeline_result)
@@ -62,7 +69,7 @@ class Worker:
         module_path, class_name = pipeline_path.split(":", maxsplit=1)
         module = import_module(module_path)
         pipeline_class = getattr(module, class_name)
-        return pipeline_class()
+        return pipeline_class(self._build_logger(Path("result/log.txt")))
 
     def _get_result_img_path(self, pipeline_result: Any) -> Path:
         output_path = getattr(pipeline_result, "output_path", None)
@@ -72,3 +79,25 @@ class Worker:
             )
 
         return Path(output_path)
+    
+    def _build_logger(self, log_path: Path) -> logging.Logger:
+        logger_name = f"Worker:{log_path.stem}:{id(self)}"
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
+        # avoid duplicated handlers if recreated
+        if logger.handlers:
+            logger.handlers.clear()
+
+        formatter = logging.Formatter(
+            fmt="%(asctime)s | %(levelname)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+
+        logger.addHandler(file_handler)
+        return logger

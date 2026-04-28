@@ -2,6 +2,7 @@ import numpy as np
 from skimage.metrics import structural_similarity as ssim
 
 from ai.metrics.base import Metric
+from ai.samplers.grid_sampler import GridSampler
 
 class SSIM(Metric):
     def __init__(
@@ -21,21 +22,6 @@ class SSIM(Metric):
         origin_patch: np.ndarray,
         normalized_patch: np.ndarray
     ) -> float:
-        origin_refs = self.sampler.sample(origin_image)
-        normalized_refs = self.sampler.sample(normalized_image)
-
-        total_scores = []
-        for ref1, ref2 in zip(origin_refs, normalized_refs):
-            patch1, patch2 = load_patch(ref1), load_patch(ref2)
-            score = ssim(
-                patch1.img,
-                patch2.img,
-                data_range=255,
-                channel_axis=0,
-            )
-            total_scores.append(score)
-
-        if not total_scores:
-            raise ValueError("SSIM evaluation produced no comparable patches.")
-
-        return sum(total_scores) / len(total_scores)
+        
+        score = ssim(origin_patch, normalized_patch, channel_axis=1, data_range=255)
+        return score

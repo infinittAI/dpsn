@@ -10,7 +10,7 @@ import torch
 
 from ai.models.stainnet.stainnet_model import StainNet
 from ai.pipelines.stainnet import StainNetInferenceConfig, StainNetPipeline
-from ai.wsi.handle import open_wsi_handle
+from ai.wsi.loader import open_wsi_handle
 
 
 def create_temp_checkpoint(path: Path) -> Path:

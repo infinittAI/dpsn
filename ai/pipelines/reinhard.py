@@ -118,8 +118,9 @@ class Reinhard(ModelPipeline):
         self.logger.info(f"Create temp file: {temp_file}")
         writer = ZarrWSIWriter(
             temp_file, 
-            src_wsi_handle.level_dimensions[level][0], 
-            src_wsi_handle.level_dimensions[level][1],
+            src_wsi_handle.level_dimensions[0][0], 
+            src_wsi_handle.level_dimensions[0][1],
+            level_downsample=src_wsi_handle.level_downsamples[level],
             tile_size = src_refs[0].width
         )
 
@@ -146,7 +147,7 @@ class Reinhard(ModelPipeline):
 
             t0 = time.time()
             for i, ref in enumerate(batch_ref):
-                writer.write_patch(ref, new_patches[i])
+                writer.write_patch(ref, new_patches[i].astype(np.uint8))
             timer['writer'] += time.time() - t0
 
         for key, score in scores.items():
@@ -157,10 +158,8 @@ class Reinhard(ModelPipeline):
         self.logger.info(f"Elapsed time: load({timer['load']:.4f}s), transform({timer['transform']:.4f}s), writer({timer['writer']:.4f}s)")
         self.logger.info(f"Metric: ssim({scores['ssim']:.4f}), psnr({scores['psnr']:.4f}), fid({scores['fid']:.4f})")
         
-        output_path = "result/out_image.png"
-        image = writer.get_thumbnail(max_size=4096)
-        image.save(output_path)
-        self.logger.info(f"Save Normalized Image: {image.width} x {image.height}")
+        output_path = writer.finalize()
+        # self.logger.info(f"Save Normalized Image: {image.width} x {image.height}")
 
         shutil.rmtree(temp_file)
 

@@ -14,7 +14,7 @@ config = StainNetInferenceConfig(
     log_every_batches=5,
 )
 
-pipeline = StainNetPipeline(config=config)
+pipeline = StainNetPipeline(logger=None, config=config)
 result = pipeline.run(input_wsi)
 
 print("output_path:", result.output_path)
