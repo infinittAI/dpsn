@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from backend.routers import models, jobs, images
+# from backend.routers import models, jobs, images
+from routers import models, jobs, images
 
 app = FastAPI()
 
