@@ -49,6 +49,7 @@ class Worker:
         )
 
         result_img_path = self._get_result_img_path(pipeline_result)
+        print(result_img_path)
 
         # Metrics are still placeholder-level in the current project.
         # TODO: ai/metrics/ 구현 후 실제 metrics 계산으로 교체

@@ -161,7 +161,8 @@ class Reinhard(ModelPipeline):
         output_path = writer.finalize()
         # self.logger.info(f"Save Normalized Image: {image.width} x {image.height}")
 
-        shutil.rmtree(temp_file)
+        # shutil.rmtree(temp_file)
+        print(output_path)
 
         return PipelineResult(
             output_path=output_path,

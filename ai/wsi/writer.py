@@ -1,6 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from pathlib import Path
+from PIL import Image
 
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -286,6 +287,9 @@ class ZarrWSIWriter(PatchWriter):
         self.tile_size = int(tile_size)
         self.level_downsample = float(level_downsample)
 
+        self.thumbnail_path = Path("result/out_image.png")
+        self.thumbnail_max_size = int(2048)
+
         if self.output_path.exists() and overwrite:
             shutil.rmtree(self.output_path)
 
@@ -310,7 +314,26 @@ class ZarrWSIWriter(PatchWriter):
         self.image[y1:y2, x1:x2, :] = img_hwc[:write_h, :write_w, :]
 
     def finalize(self) -> Path:
-        return self.output_path
+        return self._write_thumbnail()
+    
+    def _write_thumbnail(self) -> Path:
+        if self.thumbnail_path is None:
+            raise ValueError("thumbnail_path is not set.")
+
+        self.thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
+
+        max_size = self.thumbnail_max_size
+        stride = max(1, int(np.ceil(max(self.height / max_size, self.width / max_size))))
+
+        thumb = self.image[::stride, ::stride, :]
+
+        thumb_arr = np.asarray(thumb, dtype=np.uint8)
+
+        img = Image.fromarray(thumb_arr, mode="RGB")
+        img.thumbnail((max_size, max_size))
+        img.save(self.thumbnail_path)
+
+        return self.thumbnail_path
 
     def _to_hwc_uint8(self, img: np.ndarray) -> np.ndarray:
         if not isinstance(img, np.ndarray):
