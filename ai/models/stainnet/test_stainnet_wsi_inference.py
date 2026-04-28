@@ -71,7 +71,7 @@ def run_inference_smoke_test(
         flush=True,
     )
     started_at = time.time()
-    pipeline = StainNetPipeline(config=config)
+    pipeline = StainNetPipeline(logger=None, config=config)
     print("[smoke] Pipeline created. Starting inference...", flush=True)
     result = pipeline.run(input_wsi)
     print(
