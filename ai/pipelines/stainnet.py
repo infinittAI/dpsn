@@ -19,7 +19,7 @@ from ai.pipelines.result import PipelineResult
 from ai.samplers.grid_sampler import GridSampler
 from ai.wsi.handle import WSIHandle
 from ai.wsi.loader import load_patch, open_wsi_handle
-from ai.wsi.writer import TiffWSIWriter
+from ai.wsi.writer import ZarrWSIWriter
 
 # class that stores all settings needed for StainNet WSI inference
 @dataclass(slots=True)
@@ -30,7 +30,7 @@ class StainNetInferenceConfig:
 
     checkpoint_path: Path | None = None
     checkpoint_dir: Path = Path(__file__).resolve().parents[1] / "checkpoints"
-    output_dir: Path = Path("result_stainnet")
+    output_dir: Path = Path("result/stainnet")
 
     input_nc: int = 3
     output_nc: int = 3
@@ -43,9 +43,7 @@ class StainNetInferenceConfig:
     read_level: int = 0
     batch_size: int = 8
     tile_size: int = 512 # small rectangular chunks called that a WSI is divided and saved in
-    pyramid_levels: int = 2
     device: str = "auto"
-    compression: str | None = None # whether to compress the output TIFF, and by which method
     keep_store: bool = False # whether to keep the writer’s intermediate storage after output is finalized
     verbose: bool = False
     log_every_batches: int = 10
@@ -114,7 +112,7 @@ class StainNetPipeline(ModelPipeline):
             f"batch_size={self.config.batch_size}, total_batches={total_batches}"
         )
 
-        writer = TiffWSIWriter(
+        writer = ZarrWSIWriter(
             output_path=output_path,
             width=read_w,
             height=read_h,
@@ -122,18 +120,25 @@ class StainNetPipeline(ModelPipeline):
             channels=3,
             tile_size=self.config.tile_size,
             overwrite=True,
-            pyramid_levels=self.config.pyramid_levels,
-            compression=self.config.compression,
-            mpp_x=src_wsi_handle.mpp[0] if src_wsi_handle.mpp[0] > 0 else None,
-            mpp_y=src_wsi_handle.mpp[1] if src_wsi_handle.mpp[1] > 0 else None,
-            keep_store=self.config.keep_store,
         )
 
         run_start = time.time()
+        scores = dict.fromkeys(metrics.keys() if metrics is not None else [], 0.0)
+        if self.config.compute_ssim and "ssim" not in scores:
+            scores["ssim"] = 0.0
+        metric_objects = dict(metrics or {})
+        if self.config.compute_ssim and "ssim" not in metric_objects:
+            metric_objects["ssim"] = SSIM()
+
         for start in range(0, len(refs), self.config.batch_size):
             batch_refs = refs[start:start + self.config.batch_size]
             batch_patches = [load_patch(ref).img for ref in batch_refs]
             normalized_batch = self._normalize_batch(batch_patches)
+            batch_input = np.stack(batch_patches, axis=0)
+            batch_output = np.stack(normalized_batch, axis=0)
+
+            for key, metric in metric_objects.items():
+                scores[key] += metric.evaluate(batch_input, batch_output)
 
             for ref, normalized_patch in zip(batch_refs, normalized_batch):
                 writer.write_patch(ref, normalized_patch)
@@ -160,25 +165,25 @@ class StainNetPipeline(ModelPipeline):
                     f"{rate:.2f} patches/s, eta {eta_text})"
                 )
 
-        self._log("Finalizing TIFF writer...")
+        self._log("Finalizing Zarr writer and writing thumbnail...")
         final_output_path = writer.finalize()
         total_elapsed = time.time() - run_start
-        ssim_score = None
-        if self.config.compute_ssim:
-            self._log("Computing SSIM against the input WSI...")
-            normalized_wsi_handle = open_wsi_handle(final_output_path)
-            ssim_score = self._compute_ssim(
-                origin_image=src_wsi_handle,
-                normalized_image=normalized_wsi_handle,
-            )
+        normalized_scores = {
+            key: value / max(total_batches, 1) for key, value in scores.items()
+        }
 
         self._log(
             f"Finished inference in {total_elapsed:.1f}s. "
             f"Output written to {final_output_path}"
         )
-        if ssim_score is not None:
-            self._log(f"SSIM: {ssim_score:.6f}")
-        return PipelineResult(output_path=str(final_output_path), scores={})
+        self._log(f"Thumbnail written to {writer.thumbnail_path}")
+        for key, value in normalized_scores.items():
+            self._log(f"{key.upper()}: {value:.6f}")
+        return PipelineResult(
+            output_path=str(final_output_path),
+            scores=normalized_scores,
+            thumbnail_path=str(writer.thumbnail_path),
+        )
 
     def _validate_config(self) -> None:
         if self.config.patch_size <= 0:
@@ -191,8 +196,6 @@ class StainNetPipeline(ModelPipeline):
             raise ValueError("batch_size must be > 0")
         if self.config.tile_size <= 0:
             raise ValueError("tile_size must be > 0")
-        if self.config.pyramid_levels < 0:
-            raise ValueError("pyramid_levels must be >= 0")
 
     def _load_model(self) -> StainNetModel:
         model = StainNetModel(
@@ -318,19 +321,7 @@ class StainNetPipeline(ModelPipeline):
     def _build_output_path(self, src_img_path: Path) -> Path:
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(src_img_path).stem
-        return self.config.output_dir / f"{stem}_stainnet.tiff"
-
-    def _compute_ssim(
-        self,
-        origin_image: WSIHandle,
-        normalized_image: WSIHandle,
-    ) -> float:
-        metric = SSIM(
-            patch_size=self.config.patch_size,
-            stride=self.config.stride,
-            read_level=self.config.read_level,
-        )
-        return metric.evaluate(origin_image, normalized_image)
+        return self.config.output_dir / f"{stem}_stainnet.zarr"
 
     def _log_run_summary(
         self,
@@ -350,8 +341,6 @@ class StainNetPipeline(ModelPipeline):
         self._log(f"  stride={self.config.stride}")
         self._log(f"  batch_size={self.config.batch_size}")
         self._log(f"  tile_size={self.config.tile_size}")
-        self._log(f"  pyramid_levels={self.config.pyramid_levels}")
-        self._log(f"  compression={self.config.compression}")
         self._log(f"  device={self.device}")
         self._log(f"  compute_ssim={self.config.compute_ssim}")
         self._log(f"  level_dimensions={wsi_handle.level_dimensions}")

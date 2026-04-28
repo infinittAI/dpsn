@@ -1,3 +1,15 @@
+"""
+Run example:
+./.venv/bin/python -m ai.models.stainnet.test_stainnet_wsi_inference \
+  --input-wsi /absolute/path/to/sample_wsi.tiff \
+  --checkpoint-path /absolute/path/to/stainnet_checkpoint.pth \
+  --read-level 1 \
+  --output-dir result/stainnet \
+  --batch-size 8 \
+  --log-every-batches 5
+"""
+
+
 from __future__ import annotations
 
 import argparse
@@ -5,8 +17,9 @@ from pathlib import Path
 import tempfile
 import time
 
-import tifffile
 import torch
+import zarr
+from PIL import Image
 
 from ai.models.stainnet.stainnet_model import StainNet
 from ai.pipelines.stainnet import StainNetInferenceConfig, StainNetPipeline
@@ -33,7 +46,7 @@ def run_inference_smoke_test(
     batch_size: int,
     allow_single_level: bool,
     log_every_batches: int,
-) -> Path:
+) -> tuple[Path, Path | None]:
     if not input_wsi.is_file():
         raise FileNotFoundError(f"Input WSI not found: {input_wsi}")
 
@@ -80,29 +93,41 @@ def run_inference_smoke_test(
     )
 
     output_path = Path(result.output_path)
+    thumbnail_path = Path(result.thumbnail_path) if result.thumbnail_path is not None else None
     if not output_path.exists():
         raise AssertionError(f"Output file was not created: {output_path}")
+    if not output_path.is_dir():
+        raise AssertionError(f"Output path is expected to be a .zarr directory: {output_path}")
+    if thumbnail_path is None or not thumbnail_path.exists():
+        raise AssertionError(f"Thumbnail file was not created: {thumbnail_path}")
 
     expected_w, expected_h = wsi_handle.level_dimensions[read_level]
-    with tifffile.TiffFile(output_path) as tif:
-        page = tif.pages[0]
-        output_shape = page.shape
+    root = zarr.open_group(str(output_path), mode="r")
+    if "image" not in root:
+        raise AssertionError(f"Zarr output does not contain an 'image' array: {output_path}")
+    output_shape = tuple(int(x) for x in root["image"].shape)
 
     if output_shape != (expected_h, expected_w, 3):
         raise AssertionError(
             f"Unexpected output shape {output_shape}, expected {(expected_h, expected_w, 3)}"
         )
 
+    with Image.open(thumbnail_path) as thumbnail:
+        thumbnail_rgb = thumbnail.convert("RGB")
+        thumbnail_shape = (thumbnail_rgb.height, thumbnail_rgb.width, 3)
+
     print("WSI inference smoke test passed.")
     print(f"input_wsi: {input_wsi}")
     print(f"output_path: {output_path}")
+    print(f"thumbnail_path: {thumbnail_path}")
     print(f"read_level: {read_level}")
     print(f"output_shape: {output_shape}")
+    print(f"thumbnail_shape: {thumbnail_shape}")
 
     if temp_dir is not None:
         temp_dir.cleanup()
 
-    return output_path
+    return output_path, thumbnail_path
 
 
 def build_argparser() -> argparse.ArgumentParser:

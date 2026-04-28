@@ -1,3 +1,7 @@
+"""
+Run example: ./.venv/bin/python -m ai.pipelines.test_stainnet
+"""
+
 from pathlib import Path
 
 from ai.pipelines.stainnet import StainNetInferenceConfig, StainNetPipeline
@@ -8,7 +12,7 @@ checkpoint = Path("ai/checkpoints/stainnet/stainnet_aperio_to_hamamatsu_latest.p
 config = StainNetInferenceConfig(
     checkpoint_path=checkpoint,
     output_dir=Path("/mnt/Disk1/dpsn_datasets/inf_result_stainnet"),
-    read_level=1,
+    read_level=2,
     batch_size=8,
     verbose=True,
     log_every_batches=5,
@@ -18,3 +22,4 @@ pipeline = StainNetPipeline(logger=None, config=config)
 result = pipeline.run(input_wsi)
 
 print("output_path:", result.output_path)
+print("thumbnail_path:", result.thumbnail_path)

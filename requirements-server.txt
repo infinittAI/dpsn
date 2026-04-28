@@ -34,5 +34,5 @@ openslide-python==1.4.3
 PyYAML==6.0.3
 scikit-image==0.25.2
 scipy==1.15.3
-zarr==3.1.6
-numcodecs==0.16.5
+zarr==2.18.3
+numcodecs==0.13.1

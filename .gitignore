@@ -14,3 +14,5 @@ __pycache__/
 result_smoke
 result/
 ai/checkpoints
+ai/inference_test
+result_stainnet

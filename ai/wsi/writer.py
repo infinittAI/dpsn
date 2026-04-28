@@ -286,8 +286,8 @@ class ZarrWSIWriter(PatchWriter):
         self.channels = int(channels)
         self.tile_size = int(tile_size)
         self.level_downsample = float(level_downsample)
-
-        self.thumbnail_path = Path("result/out_image.png")
+        # self.thumbnail_path = Path("result/out_image.png")
+        self.thumbnail_path = Path("result") / self.output_path.parent / "out_image.png"
         self.thumbnail_max_size = int(2048)
 
         if self.output_path.exists() and overwrite:
@@ -314,7 +314,9 @@ class ZarrWSIWriter(PatchWriter):
         self.image[y1:y2, x1:x2, :] = img_hwc[:write_h, :write_w, :]
 
     def finalize(self) -> Path:
-        return self._write_thumbnail()
+        # return self._write_thumbnail()
+        self._write_thumbnail()
+        return self.output_path
     
     def _write_thumbnail(self) -> Path:
         if self.thumbnail_path is None:
