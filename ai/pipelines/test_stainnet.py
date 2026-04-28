@@ -7,8 +7,8 @@ checkpoint = Path("ai/checkpoints/stainnet/stainnet_aperio_to_hamamatsu_latest.p
 
 config = StainNetInferenceConfig(
     checkpoint_path=checkpoint,
-    output_dir=Path("result_stainnet"),
-    read_level=0,
+    output_dir=Path("/mnt/Disk1/dpsn_datasets/inf_result_stainnet"),
+    read_level=1,
     batch_size=8,
     verbose=True,
     log_every_batches=5,
