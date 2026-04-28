@@ -8,7 +8,7 @@ from ai.pipelines.result import PipelineResult
 class ModelPipeline(ABC):
     logger: logging.Logger
     
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: logging.Logger | None):
         self.logger = logger
     
     @abstractmethod

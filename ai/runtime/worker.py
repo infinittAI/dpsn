@@ -82,6 +82,8 @@ class Worker:
         return Path(output_path)
     
     def _build_logger(self, log_path: Path) -> logging.Logger:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
         logger_name = f"Worker:{log_path.stem}:{id(self)}"
         logger = logging.getLogger(logger_name)
         logger.setLevel(logging.INFO)

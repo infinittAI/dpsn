@@ -29,8 +29,8 @@ class StainNetInferenceConfig:
     """
 
     checkpoint_path: Path | None = None
-    checkpoint_dir: Path = Path(__file__).resolve().parents[1] / "checkpoints"
-    output_dir: Path = Path("result/stainnet")
+    checkpoint_dir: Path = Path(__file__).resolve().parents[1] / "checkpoints" / "stainnet"
+    output_dir: Path = Path("/mnt/Disk1/dpsn_datasets/inf_result_stainnet")
 
     input_nc: int = 3
     output_nc: int = 3
@@ -40,13 +40,13 @@ class StainNetInferenceConfig:
 
     patch_size: int = 512
     stride: int = 512
-    read_level: int = 0
+    read_level: int = 2
     batch_size: int = 8
     tile_size: int = 512 # small rectangular chunks called that a WSI is divided and saved in
     device: str = "auto"
     keep_store: bool = False # whether to keep the writer’s intermediate storage after output is finalized
-    verbose: bool = False
-    log_every_batches: int = 10
+    verbose: bool = True
+    log_every_batches: int = 5
     compute_ssim: bool = True
 
 # Class that performs the whole inference procedure on a WSI
@@ -58,7 +58,7 @@ class StainNetPipeline(ModelPipeline):
     folders and lives in separate dataset/training modules.
     """
 
-    def __init__(self, logger: logging.Logger, config: StainNetInferenceConfig | None = None) -> None:
+    def __init__(self, logger: logging.Logger | None, config: StainNetInferenceConfig | None = None) -> None:
         super().__init__(logger=logger)
         self.config = config or StainNetInferenceConfig()
         self._validate_config()
@@ -246,6 +246,26 @@ class StainNetPipeline(ModelPipeline):
             return checkpoint_path
 
         checkpoint_dir = Path(self.config.checkpoint_dir)
+        if not checkpoint_dir.is_dir():
+            raise FileNotFoundError(
+                f"StainNet checkpoint directory not found: {checkpoint_dir}"
+            )
+
+        latest_candidates = sorted(
+            [
+                *checkpoint_dir.glob("*latest*.pth"),
+                *checkpoint_dir.glob("*latest*.pt"),
+            ]
+        )
+        if len(latest_candidates) == 1:
+            return latest_candidates[0]
+        if len(latest_candidates) > 1:
+            names = ", ".join(str(path) for path in latest_candidates)
+            raise ValueError(
+                "Multiple StainNet latest checkpoint files found. "
+                f"Pass checkpoint_path explicitly: {names}"
+            )
+
         candidates = sorted(
             [
                 *checkpoint_dir.glob("*.pth"),
@@ -350,6 +370,8 @@ class StainNetPipeline(ModelPipeline):
     def _log(self, message: str) -> None:
         if self.config.verbose:
             print(f"[StainNetPipeline] {message}", flush=True)
+        if self.logger is not None:
+            self.logger.info(message)
 
 
 # Backward-compatible alias while the rest of the project catches up.
