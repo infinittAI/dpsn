@@ -3,7 +3,9 @@ import logging
 from pathlib import Path
 from typing import Callable
 
+from ai.metrics.fid import FID
 from ai.metrics.ssim import SSIM
+from ai.metrics.psnr import PSNR
 from ai.runtime.task import Task, TaskResult, Metrics
 from ai.pipelines.base import ModelPipeline
 from ai.pipelines.reinhard import Reinhard
@@ -54,13 +56,17 @@ class Worker:
         result = pipeline.run(
             task.src_img_path, 
             task.target_img_path, 
-            {"ssim": SSIM()},
+            {
+                "ssim": SSIM(),
+                "psnr": PSNR(),
+                "fid": FID(),
+            },
         )
 
         metrics = Metrics(
-            1.0,
-            0.95,
-            0.94
+            result.scores.get('ssim', -1.0),
+            result.scores.get('psnr', -1.0),
+            result.scores.get('fid', -1.0)
         )
 
         return TaskResult(

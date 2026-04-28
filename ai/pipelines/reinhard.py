@@ -124,8 +124,11 @@ class Reinhard(ModelPipeline):
         )
 
         timer = defaultdict(float)
+        scores = defaultdict(float)
 
+        iter = 0
         for idx in tqdm(range(0, len(src_refs), self.batch_size)):
+            iter += 1
             t0 = time.time()
             batch_ref = src_refs[idx:idx + self.batch_size]
             patches = [load_patch(ref) for ref in batch_ref]
@@ -138,12 +141,21 @@ class Reinhard(ModelPipeline):
             timer['transform'] += time.time() - t0
 
             t0 = time.time()
+            for key, metric in metrics.items():
+                scores[key] += metric.evaluate(patches, new_patches)
+
+            t0 = time.time()
             for i, ref in enumerate(batch_ref):
                 writer.write_patch(ref, new_patches[i])
             timer['writer'] += time.time() - t0
+
+        for key, score in scores.items():
+            scores[key] /= iter
+        scores = dict(scores)
         
         self.logger.info("Finish normalize")
         self.logger.info(f"Elapsed time: load({timer['load']:.4f}s), transform({timer['transform']:.4f}s), writer({timer['writer']:.4f}s)")
+        self.logger.info(f"Metric: ssim({scores['ssim']:.4f}), psnr({scores['psnr']:.4f}), fid({scores['fid']:.4f})")
         
         output_path = "result/out_image.png"
         image = writer.get_thumbnail(max_size=4096)
@@ -153,7 +165,8 @@ class Reinhard(ModelPipeline):
         shutil.rmtree(temp_file)
 
         return PipelineResult(
-            output_path=output_path
+            output_path=output_path,
+            scores=scores
         )
         
     
