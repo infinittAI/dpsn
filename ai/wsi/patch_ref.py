@@ -30,6 +30,7 @@ class PatchRef:
     width: int 
     height: int
     read_level: int   #which lv to read from
+    downsample: int
     mpp_x: float
     mpp_y: float
 
@@ -49,6 +50,8 @@ class PatchRef:
             raise ValueError(f"height must be > 0, got {self.height}")
         if self.read_level < 0:
             raise ValueError(f"read_level must be >= 0, got {self.read_level}")
+        if self.downsample <= 0:
+            raise ValueError(f"downsample must be > 0, got {self.downsample}")
         
     # Formatting eg. ref.x -> x, or ref.height -> height
     @property
@@ -76,6 +79,7 @@ class PatchRef:
             "width": self.width,
             "height": self.height,
             "read_level": self.read_level,
+            "downsample": self.downsample,
             "mpp_x": self.mpp_x,
             "mpp_y": self.mpp_y,
         }
@@ -88,6 +92,7 @@ class PatchRef:
             f"x={self.x}, y={self.y}, "
             f"width={self.width}, height={self.height}, "
             f"read_level={self.read_level}, "
+            f"downsample={self.downsample}, "
             f"mpp_x={self.mpp_x}, mpp_y={self.mpp_y}"
             ")"
         )

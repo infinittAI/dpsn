@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 import json
-from schemas import ModelResponse
+from backend.schemas import ModelResponse
 from pathlib import Path
 
 router = APIRouter()

@@ -43,7 +43,8 @@ except ImportError as e:
     ) from e
 
 from ai.wsi.patch_ref import PatchRef
-from ai.wsi.handle import WSIHandle, open_wsi_handle
+from ai.wsi.handle import WSIHandle
+from ai.wsi.loader import open_wsi_handle, load_patch
 
 
 class PatchSamplerError(RuntimeError):
@@ -312,15 +313,9 @@ class PatchSampler:
 
         self.logger.info("Selected mask_level=%d with dimensions=%s", mask_level, (level_w, level_h)) #log chosen level
 
-        try: #load thumbnail image
-            with openslide.OpenSlide(str(wsi_handle.image_path)) as slide:
-                region = slide.read_region((0, 0), mask_level, (level_w, level_h)) #read image region from (0,0)
-        except Exception as e:
-            self.logger.exception("Failed to open/read WSI: %s", wsi_handle.image_path)
-            raise SlideOpenError(f"Failed to read slide: {wsi_handle.image_path}") from e
-
-        thumbnail_rgb = region.convert("RGB") #convert image to RGB - drop alpha
-        rgb = np.asarray(thumbnail_rgb, dtype=np.uint8) #convert PIL image into numpy array
+        ref = wsi_handle.make_ref((0, 0), mask_level, (level_w, level_h))
+        rgb = load_patch(ref).img.transpose([1, 2, 0])
+        thumbnail_rgb = rgb.copy()
 
         gray = self._rgb_to_gray(rgb)               # [0, 1] Convert RBG image to grayscale
         sat = self._rgb_to_saturation(rgb)          # [0, 1] Computes saturation

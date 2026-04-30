@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 
-from ai.wsi.handle import WSIHandle
+import numpy as np
 
 class Metric(ABC):
     def __init__(self):
         pass
 
     @abstractmethod
-    def evaluate(self, origin_image: WSIHandle, normalized_image: WSIHandle) -> float:
+    def evaluate(self, origin_patch: np.ndarray, normalized_patch: np.ndarray) -> float:
         pass
