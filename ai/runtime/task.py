@@ -17,3 +17,4 @@ class Task:
 class TaskResult:
     result_img_path: Path
     metrics: Metrics
+    thumbnail_path: Path | None = None

@@ -4,7 +4,7 @@ import { METRIC_DEFS } from "../data";
 import type { MetricDef, ModelUi, JobResult } from "../types";
 import Icon from "./Icon";
 import { WsiView } from "./WsiImage";
-// import { getImageUrl } from '../api';
+import { getImageUrl } from '../api';
 
 interface MetricCardProps {
   def: MetricDef;
@@ -72,7 +72,7 @@ export function EmptyState({ hasFile, selectedCount }: EmptyStateProps) {
   const reasons = [];
   if (!hasFile) reasons.push({ icon: "upload", label: "WSI 이미지 업로드" });
   if (selectedCount === 0)
-    reasons.push({ icon: "layers", label: "모델 1개 이상 선택" });
+    reasons.push({ icon: "layers", label: "정규화 방법 1개 이상 선택" });
   return (
     <div
       style={{
@@ -159,9 +159,10 @@ export function EmptyState({ hasFile, selectedCount }: EmptyStateProps) {
 interface SingleResultProps {
   model: ModelUi;
   result: JobResult;
+  srcImageId?: string;
 }
 
-export function SingleResult({ model, result }: SingleResultProps) {
+export function SingleResult({ model, result, srcImageId }: SingleResultProps) {
   const [showGrid, setShowGrid] = useState(false);
   const [zoom, setZoom] = useState(1);
   const seed = 7;
@@ -256,6 +257,7 @@ export function SingleResult({ model, result }: SingleResultProps) {
             <div style={inner}>
               <WsiView
                 seed={seed}
+                src={srcImageId ? getImageUrl(srcImageId) : undefined}
                 mode="dim"
                 label="원본"
                 chip="BEFORE"
@@ -274,6 +276,7 @@ export function SingleResult({ model, result }: SingleResultProps) {
             <div style={inner}>
               <WsiView
                 seed={seed}
+                src={result.result_image_id ? getImageUrl(result.result_image_id) : undefined}
                 mode="norm"
                 tint={model.tint}
                 intensity={0.8}
@@ -456,7 +459,7 @@ export function MultiDashboard({ models, results }: MultiDashboardProps) {
             justifyContent: "space-between",
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 600 }}>성적표</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>비교표</div>
           <div
             style={{
               display: "flex",

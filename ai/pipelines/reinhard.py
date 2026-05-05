@@ -166,7 +166,8 @@ class Reinhard(ModelPipeline):
 
         return PipelineResult(
             output_path=output_path,
-            scores=scores
+            scores=scores,
+            thumbnail_path=writer.thumbnail_path,
         )
         
     

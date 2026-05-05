@@ -49,7 +49,7 @@ class Worker:
         )
 
         result_img_path = self._get_result_img_path(pipeline_result)
-        print(result_img_path)
+        thumbnail_path = Path(pipeline_result.thumbnail_path) if getattr(pipeline_result, "thumbnail_path", None) else None
 
         # Metrics are still placeholder-level in the current project.
         # TODO: ai/metrics/ 구현 후 실제 metrics 계산으로 교체
@@ -58,6 +58,7 @@ class Worker:
         return TaskResult(
             result_img_path=result_img_path,
             metrics=metrics,
+            thumbnail_path=thumbnail_path,
         )
 
     def _create_pipeline(self, model_id: int) -> ModelPipeline:

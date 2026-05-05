@@ -24,9 +24,10 @@ def run_job(job_id: str, model_id: int, image_id: str):
         )
         task_result = _worker.run(task, emit_event=None)
 
-        # 결과 이미지를 image_store에 등록하고 result_image_id 발급
+        # 결과 이미지를 image_store에 등록하고 result_image_id 발급 (thumbnail 우선)
         result_image_id = str(uuid.uuid4())
-        image_store.images[result_image_id] = str(task_result.result_img_path)
+        serve_path = task_result.thumbnail_path if task_result.thumbnail_path else task_result.result_img_path
+        image_store.images[result_image_id] = str(serve_path)
 
         jobs[job_id]["status"] = "done"
         jobs[job_id]["result_image_id"] = result_image_id
