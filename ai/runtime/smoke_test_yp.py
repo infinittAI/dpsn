@@ -11,7 +11,6 @@ Output:
 """
 
 from __future__ import annotations
-
 from pathlib import Path
 import shutil
 
@@ -24,8 +23,8 @@ from ai.wsi.loader import load_patch, open_wsi_handle
 
 
 # Edit these before running.
-INPUT_WSI_PATH = Path("/absolute/path/to/input_wsi.tiff")
-OUTPUT_ZARR_PATH = Path("/absolute/path/to/output/slide_staingan.zarr")
+INPUT_WSI_PATH = Path("/mnt/Disk1/dpsn_datasets/camelyon16/normal_078.tif")
+OUTPUT_ZARR_PATH = Path("/mnt/Disk1/dpsn_datasets/inf_result_stainngan")
 CHECKPOINT_PATH: Path | None = None
 
 
