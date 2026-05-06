@@ -42,7 +42,7 @@ class StainGANInferenceConfig:
 
     patch_size: int = 512
     stride: int = 512
-    read_level: int = 2
+    read_level: int = 0
     batch_size: int = 8
     tile_size: int = 512
     pyramid_levels: int = 3
@@ -79,7 +79,7 @@ class StainGANPipeline(ModelPipeline):
     ) -> PipelineResult:
         del target_img_path
 
-        src_wsi_handle = open_wsi_handle(src_img_path)
+        src_wsi_handle = open_wsi_handle(src_img_path) #open source img using wsi handle
         level_count = len(src_wsi_handle.level_dimensions)
         if not (0 <= self.config.read_level < level_count):
             raise ValueError(
@@ -88,7 +88,7 @@ class StainGANPipeline(ModelPipeline):
 
         read_w, read_h = src_wsi_handle.level_dimensions[self.config.read_level]
         level_downsample = float(src_wsi_handle.level_downsamples[self.config.read_level])
-        refs = self.grid_sampler.sample(src_wsi_handle)
+        refs = self.grid_sampler.sample(src_wsi_handle) #patch(?) reference
         output_path = self._build_output_path(src_img_path)
         total_refs = len(refs)
         total_batches = (total_refs + self.config.batch_size - 1) // self.config.batch_size
@@ -114,6 +114,7 @@ class StainGANPipeline(ModelPipeline):
             pyramid_levels=self.config.pyramid_levels,
         )
 
+        #Metric Calculation
         run_start = time.time()
         scores = dict.fromkeys(metrics.keys() if metrics is not None else [], 0.0)
         if self.config.compute_ssim and "ssim" not in scores:
@@ -189,20 +190,21 @@ class StainGANPipeline(ModelPipeline):
             raise ValueError(
                 f"generator_direction must be 'a2b' or 'b2a', got {self.config.generator_direction!r}"
             )
-
+        
+    # Build the generator and load trained weights into it
     def _load_model(self) -> ResnetGenerator:
-        model = ResnetGenerator(
+        model = ResnetGenerator( #Create the generator architecture
             input_nc=self.config.input_nc,
             output_nc=self.config.output_nc,
             ngf=self.config.ngf,
             n_blocks=self.config.generator_blocks,
         )
 
-        checkpoint_path = self._resolve_checkpoint_path()
-        checkpoint = self._load_checkpoint(checkpoint_path)
-        state_dict = self._extract_state_dict(checkpoint)
-        state_dict = self._strip_module_prefix(state_dict)
-        model.load_state_dict(state_dict)
+        checkpoint_path = self._resolve_checkpoint_path() #select which checkpoint path to load
+        checkpoint = self._load_checkpoint(checkpoint_path) #load the checkpoint from path
+        state_dict = self._extract_state_dict(checkpoint) #extract generator weights from ckpt
+        state_dict = self._strip_module_prefix(state_dict) #strip unnecessary prefixes
+        model.load_state_dict(state_dict) #load weights onto model
         return model
 
     # Actually opens and loads that checkpoint file with PyTorch
@@ -275,19 +277,20 @@ class StainGANPipeline(ModelPipeline):
                 f"{names}"
             )
         return candidates[0]
-
+    
+    #From the loaded checkpoint, pull out the actual model weights dictionary, from whatever format was used
     def _extract_state_dict(self, checkpoint: Any) -> dict[str, torch.Tensor]:
-        if isinstance(checkpoint, dict):
-            preferred_keys = (
-                f"g_{self.config.generator_direction}_state_dict",
-                "g_a2b_state_dict",
+        if isinstance(checkpoint, dict): #if the checkpoint is a dict, defined preferred keys
+            preferred_keys = ( #the list of key names it will search for
+                f"g_{self.config.generator_direction}_state_dict", ##directional generator key (a to b or b to a)
+                "g_a2b_state_dict", 
                 "g_b2a_state_dict",
                 "state_dict",
                 "model_state_dict",
                 "net",
                 "model",
             )
-            for key in preferred_keys:
+            for key in preferred_keys: #for each key, get checkpoint[key] from dict
                 value = checkpoint.get(key)
                 if isinstance(value, dict):
                     return value
@@ -297,6 +300,8 @@ class StainGANPipeline(ModelPipeline):
 
         raise ValueError("Checkpoint does not contain a valid generator state_dict.")
 
+    #Checking if parameter names in checkpoint have extra prefixes/modules that needs to be removed
+    #E.g. "module.model.0.weight" instead of "module.0.weight"
     def _strip_module_prefix(
         self,
         state_dict: dict[str, torch.Tensor],
@@ -309,19 +314,22 @@ class StainGANPipeline(ModelPipeline):
             for key, value in state_dict.items()
         }
 
-    def _normalize_batch(self, patches_chw: list[np.ndarray]) -> list[np.ndarray]:
-        batch = np.stack(patches_chw, axis=0).astype(np.float32) / 255.0
-        tensor = torch.from_numpy(batch).to(self.device)
+    # takes a list of image patches, groups them into a batch, 
+    # normalizes them into the numeric range the model expects, runs them through the StainGAN generator, 
+    # and converts the outputs back into regular image arrays (uint8)
+    def _normalize_batch(self, patches_chw: list[np.ndarray]) -> list[np.ndarray]: #input is a list of NumPy arrays, each shaped like (C, H, W)
+        batch = np.stack(patches_chw, axis=0).astype(np.float32) / 255.0 # stack patches into one batch, scale to [0,1]
+        tensor = torch.from_numpy(batch).to(self.device) #convert numpy -> tensor
         tensor = (tensor - 0.5) * 2.0
 
-        with torch.inference_mode():
-            output = self.model(tensor)
+        with torch.inference_mode(): #inference mode only - no tracking gradients
+            output = self.model(tensor) #applies trained staingan generator to the batch
 
-        output = output * 0.5 + 0.5
-        output = torch.clamp(output, 0.0, 1.0)
+        output = output * 0.5 + 0.5 #Convert output from [-1,1] back to [0,1]
+        output = torch.clamp(output, 0.0, 1.0) #clamp to valid image range - second check
         output_np = output.detach().cpu().numpy()
-        output_np = np.rint(output_np * 255.0).astype(np.uint8)
-        return [output_np[i] for i in range(output_np.shape[0])]
+        output_np = np.rint(output_np * 255.0).astype(np.uint8) #Convert from [0,1] floats to [0,255] uint8 image values
+        return [output_np[i] for i in range(output_np.shape[0])] #split back into list of patches
 
     def _build_output_path(self, src_img_path: Path) -> Path:
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
