@@ -576,6 +576,7 @@ export default function App() {
                 <MultiDashboard
                   models={activeModels}
                   results={activeJob.results}
+                  srcImageId={activeJob.src_image_id}
                 />
               )}
             </div>

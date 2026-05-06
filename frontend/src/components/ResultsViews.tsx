@@ -260,7 +260,7 @@ export function SingleResult({ model, result, srcImageId }: SingleResultProps) {
                 src={srcImageId ? getImageUrl(srcImageId) : undefined}
                 mode="dim"
                 label="원본"
-                chip="BEFORE"
+                chip="원본"
                 showGrid={showGrid}
               />
             </div>
@@ -282,7 +282,7 @@ export function SingleResult({ model, result, srcImageId }: SingleResultProps) {
                 intensity={0.8}
                 label="정규화 결과"
                 sublabel={model.name}
-                chip="AFTER"
+                chip={model.name}
                 chipColor={model.tint}
                 showGrid={showGrid}
               />
@@ -313,9 +313,10 @@ export function SingleResult({ model, result, srcImageId }: SingleResultProps) {
 interface MultiDashboardProps {
   models: ModelUi[];
   results: Record<number, JobResult>;
+  srcImageId?: string;
 }
 
-export function MultiDashboard({ models, results }: MultiDashboardProps) {
+export function MultiDashboard({ models, results, srcImageId }: MultiDashboardProps) {
   const [sortKey, setSortKey] = useState<"psnr" | "ssim" | "fid">("psnr");
   const seed = 7;
 
@@ -366,7 +367,7 @@ export function MultiDashboard({ models, results }: MultiDashboardProps) {
           >
             결과 비교 대시보드
           </div>
-          <span className="chip accent dot">모델 {models.length}개</span>
+          <span className="chip accent dot">방법 {models.length}개</span>
         </div>
       </div>
 
@@ -377,12 +378,22 @@ export function MultiDashboard({ models, results }: MultiDashboardProps) {
           gap: 14,
         }}
       >
+        <div className="card fade-up" style={{ padding: 12 }}>
+          <WsiView
+            seed={seed}
+            src={srcImageId ? getImageUrl(srcImageId) : undefined}
+            mode="dim"
+            chip="원본"
+            style={{ aspectRatio: "1 / 1" }}
+          />
+        </div>
         {sorted.map((m) => {
           const r = results[m.id];
           return (
             <div key={m.id} className="card fade-up" style={{ padding: 12 }}>
               <WsiView
                 seed={seed}
+                src={r?.result_image_id ? getImageUrl(r.result_image_id) : undefined}
                 mode="norm"
                 tint={m.tint}
                 intensity={0.8}
@@ -541,7 +552,7 @@ export function MultiDashboard({ models, results }: MultiDashboardProps) {
                   </td>
                   <td style={tdStyle}>
                     <span className="chip">
-                      {m.category === "Classical" ? "통계 기반" : "딥러닝"}
+                      {m.category === "Classical" ? "알고리즘 기반" : "딥러닝 모델"}
                     </span>
                   </td>
                   {METRIC_DEFS.map((def) => {
