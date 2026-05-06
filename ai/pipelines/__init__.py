@@ -4,3 +4,9 @@ from ai.pipelines.stainnet import (
     StainNetInferenceConfig,
     StainNetPipeline,
 )
+from ai.pipelines.staingan import (
+    StainGAN,
+    StainGANConfig,
+    StainGANInferenceConfig,
+    StainGANPipeline,
+)

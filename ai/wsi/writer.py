@@ -53,7 +53,7 @@ class ZarrWSIWriter(PatchWriter):
         self.channels = int(channels)
         self.tile_size = int(tile_size)
         self.level_downsample = float(level_downsample)
-        self.thumbnail_path = Path("result") / self.output_path.parent / "out_image.png"
+        self.thumbnail_path = self.output_path.parent / "out_image.png"
         self.thumbnail_max_size = int(2048)
 
         if self.output_path.exists() and overwrite:
@@ -185,7 +185,7 @@ class MultiZarrWSIWriter(PatchWriter):
         self.tile_size = int(tile_size)
         self.level_downsample = float(level_downsample)
         self.pyramid_levels = int(pyramid_levels)
-        self.thumbnail_path = Path("result") / self.output_path.parent / "out_image.png"
+        self.thumbnail_path = self.output_path.parent / "out_image.png"
         self.thumbnail_max_size = int(2048)
 
         if self.output_path.exists() and overwrite:

@@ -28,7 +28,7 @@ PIPELINE_MAP: dict[int, str] = {
     1: "ai.pipelines.reinhard:Reinhard",
     # 2: Macenko(),  
     # 3: Vahadane(),  
-    # 4: StainGAN(),  
+    4: "ai.pipelines.staingan:StainGANPipeline",  
     5: "ai.pipelines.stainnet:StainNetPipeline",
     # 6: StainSWIN(), 
 }
@@ -51,9 +51,12 @@ class Worker:
         result_img_path = self._get_result_img_path(pipeline_result)
         print(result_img_path)
 
-        # Metrics are still placeholder-level in the current project.
-        # TODO: ai/metrics/ 구현 후 실제 metrics 계산으로 교체
-        metrics = Metrics(ssim=0.95, psnr=32.4, fid=60)
+        scores = getattr(pipeline_result, "scores", {}) or {}
+        metrics = Metrics(
+            ssim=float(scores.get("ssim", float("nan"))),
+            psnr=float(scores.get("psnr", float("nan"))),
+            fid=float(scores.get("fid", float("nan"))),
+        )
 
         return TaskResult(
             result_img_path=result_img_path,
